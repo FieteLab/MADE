@@ -71,14 +71,18 @@ def can_connectivity(can: CAN, cmap="bwr", vmin=-1, vmax=0):
     total_neurons = can.neurons_coordinates.shape[0]
     neurons_idx = np.random.choice(total_neurons, 4, replace=False)
 
-    # Reshape coordinates back to grid for plotting
-    X = can.neurons_coordinates[:, 0].reshape(can.N, can.N)
-    Y = can.neurons_coordinates[:, 1].reshape(can.N, can.N)
+    # Calculate grid dimensions based on spacing
+    nx = can.nx(0)
+    ny = can.nx(1)
+
+    # Reshape coordinates into 2D grids
+    X = can.neurons_coordinates[:, 0].reshape(ny, nx)
+    Y = can.neurons_coordinates[:, 1].reshape(ny, nx)
 
     for i, ax in enumerate(axes.flatten()):
         # Get connectivity for this neuron and reshape to grid
         neuron_connectivity = can.connectivity_matrix[neurons_idx[i]].reshape(
-            can.N, can.N
+            ny, nx
         )
 
         # Create contour plot

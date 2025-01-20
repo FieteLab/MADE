@@ -3,7 +3,7 @@ import numpy as np
 from loguru import logger
 from typing import Literal
 
-from .manifolds import AbstractManifold, Plane, Torus
+from .manifolds import AbstractManifold, Plane, Torus, Cylinder
 
 
 def soft_relu(x):
@@ -41,7 +41,7 @@ def quality_check(X: np.ndarray, name: str):
 @dataclass
 class CAN:
     manifold: AbstractManifold
-    N: int  # N here represents the number of neurons per dimension
+    spacing: float  # spacing between neurons
     alpha: float
     sigma: float
     tau: float = 1.5
@@ -49,13 +49,21 @@ class CAN:
     def __post_init__(self):
         self.kernel = Kernel(self.alpha, self.sigma)
 
-        # sample N^dim neurons in a uniform grid
-        self.neurons_coordinates = self.manifold.parameter_space.sample(self.N)
+        # Calculate number of neurons needed in each dimension based on spacing
+        ranges = self.manifold.parameter_space.ranges
+        N_per_dim = []
+        for r in ranges:
+            range_size = r.end - r.start
+            n = int(np.ceil(range_size / self.spacing))
+            N_per_dim.append(n)
 
-        # get an N^2 x N^2 connectivity matrix
-        total_neurons = self.neurons_coordinates.shape[
-            0
-        ]  # This is N^2 for 2D manifolds
+        # sample neurons in a uniform grid with the calculated spacing
+        self.neurons_coordinates = (
+            self.manifold.parameter_space.sample_with_spacing(self.spacing)
+        )
+
+        # get connectivity matrix for all neurons
+        total_neurons = self.neurons_coordinates.shape[0]
         distances = self.manifold.metric.pairwise_distances(
             self.neurons_coordinates
         )
@@ -68,20 +76,38 @@ class CAN:
         # initialize arrays to store the state and change in state of each neuron
         self.S = np.zeros((total_neurons, 1))
 
+    def __repr__(self):
+        return f"CAN(spacing={self.spacing}, N neurons={self.connectivity_matrix.shape[0]})"
+
     def idx2coord(self, idx: int, dim: int) -> np.ndarray:
-        rel = idx / self.N
+        n = self.nx(dim)
+        rel = idx / n
         return self.manifold.parameter_space.ranges[dim].rel2coord(rel)
 
     @classmethod
-    def default(cls, topology: Literal["Plane", "Torus"] = "Plane"):
+    def default(
+        cls, topology: Literal["Plane", "Torus", "Cylinder"] = "Plane"
+    ):
         if topology.lower() == "plane":
             manifold = Plane()
-            return cls(manifold, N=48, alpha=2, sigma=0.5)
+            return cls(manifold, spacing=0.1, alpha=2, sigma=1)
+
         elif topology.lower() == "torus":
             manifold = Torus()
-            return cls(manifold, N=48, alpha=2.5, sigma=5)
+            return cls(manifold, spacing=0.2, alpha=2.5, sigma=5)
+
+        elif topology.lower() == "cylinder":
+            manifold = Cylinder()
+            return cls(manifold, spacing=0.1, alpha=2, sigma=1)
+
         else:
             raise ValueError(f"Invalid topology: {topology}")
+
+    def nx(self, dim: int) -> int:
+        ranges = self.manifold.parameter_space.ranges
+        return int(
+            np.ceil((ranges[dim].end - ranges[dim].start) / self.spacing)
+        )
 
     def reset(
         self,
