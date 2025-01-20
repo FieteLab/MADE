@@ -55,3 +55,7 @@ class CAN:
         logger.debug(
             f"Created CAN with {total_neurons} neurons. {self.connectivity_matrix.shape=}"
         )
+
+        # initialize arrays to store the state and change in state of each neuron
+        self.S = np.zeros((total_neurons, 1))
+        self.S_dot = np.zeros((total_neurons, 1))
