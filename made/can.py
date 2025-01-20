@@ -76,7 +76,7 @@ class CAN:
     def default(cls, topology: Literal["Plane", "Torus"] = "Plane"):
         if topology.lower() == "plane":
             manifold = Plane()
-            return cls(manifold, N=48, alpha=1, sigma=0.25)
+            return cls(manifold, N=48, alpha=2, sigma=0.5)
         elif topology.lower() == "torus":
             manifold = Torus()
             return cls(manifold, N=48, alpha=2.5, sigma=5)

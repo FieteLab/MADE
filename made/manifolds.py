@@ -97,7 +97,7 @@ class AbstractManifold:
 class Plane(AbstractManifold):
     dim: int = 2
     parameter_space: ParameterSpace = ParameterSpace(
-        [Range(0, 1), Range(0, 1)]
+        [Range(0, 1, periodic=False), Range(0, 1, periodic=False)]
     )
     metric: Metric = Euclidean(dim)
 
