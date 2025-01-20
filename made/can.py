@@ -23,7 +23,7 @@ class Kernel:
     def __call__(self, x: float) -> float:
         # Prevent overflow in exp by clipping large values
         exp_term = -(x**2) / (2 * self.sigma**2)
-        return self.alpha * (np.exp(exp_term) - 1)
+        return self.alpha * np.exp(exp_term) - self.alpha
 
 
 # ---------------------------------------------------------------------------- #
@@ -44,7 +44,7 @@ class CAN:
     spacing: float  # spacing between neurons
     alpha: float
     sigma: float
-    tau: float = 1.5
+    tau: float = 1.7
 
     def __post_init__(self):
         self.kernel = Kernel(self.alpha, self.sigma)
@@ -90,7 +90,7 @@ class CAN:
     ):
         if topology.lower() == "plane":
             manifold = Plane()
-            return cls(manifold, spacing=0.1, alpha=2, sigma=1)
+            return cls(manifold, spacing=0.075, alpha=3, sigma=1)
 
         elif topology.lower() == "torus":
             manifold = Torus()
@@ -113,7 +113,6 @@ class CAN:
         self,
         mode: Literal["random", "uniform", "point"] = "random",
         point: np.ndarray = None,
-        radius: float = None,
     ):
         N = self.connectivity_matrix.shape[0]
         if mode == "random":
@@ -121,7 +120,7 @@ class CAN:
         elif mode == "uniform":
             self.S = np.ones((N, 1)) * 0.5
         elif mode == "point":
-            if point is None or radius is None:
+            if point is None:
                 raise ValueError(
                     "For point mode, both point and radius must be provided"
                 )
@@ -132,6 +131,7 @@ class CAN:
 
             # Calculate distances from the point to all neurons
             distances = self.manifold.metric(point, self.neurons_coordinates)
+            radius = np.max(distances) * 0.1
 
             # Set states based on distances
             self.S = np.zeros((N, 1))
@@ -140,11 +140,7 @@ class CAN:
             raise ValueError(f"Invalid mode: {mode}")
 
     def __call__(self):
-        S_dot = self.connectivity_matrix @ self.S + 1
-        self.S += (soft_relu(S_dot) - self.S) / self.tau
-
-        if np.any(np.isnan(self.S)) or np.any(np.isnan(S_dot)):
-            logger.error("NaN values detected in S or S_dot")
+        self.S = self.step_stateless(self.S)
 
     def step_stateless(self, S):
         """Stateless version of the step function that takes state as input and returns new state"""
