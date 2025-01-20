@@ -121,10 +121,31 @@ class AbstractManifold:
         self.parameter_space.visualize(ax)
 
     def contains(self, point: np.ndarray) -> bool:
+        assert len(point) == self.dim, "Incorrect number of dimensions"
         for i, r in enumerate(self.parameter_space.ranges):
             if not r.start <= point[i] <= r.end:
                 return False
         return True
+
+
+# ----------------------------------- line ---------------------------------- #
+@dataclass
+class Line(AbstractManifold):
+    dim: int = 1
+    parameter_space: ParameterSpace = ParameterSpace(
+        [Range(0, 10, periodic=False)]
+    )
+    metric: Metric = Euclidean(dim)
+
+
+# ----------------------------------- ring ---------------------------------- #
+@dataclass
+class Ring(AbstractManifold):
+    dim: int = 1
+    parameter_space: ParameterSpace = ParameterSpace(
+        [Range(0, 2 * np.pi, periodic=True)]
+    )
+    metric: Metric = PeriodicEuclidean(dim, periodic=[True])
 
 
 # ----------------------------------- plane ---------------------------------- #

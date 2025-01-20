@@ -3,7 +3,7 @@ import numpy as np
 from loguru import logger
 from typing import Literal
 
-from .manifolds import AbstractManifold, Plane, Torus, Cylinder
+from .manifolds import AbstractManifold, Plane, Torus, Cylinder, Line, Ring
 
 
 def soft_relu(x):
@@ -86,9 +86,20 @@ class CAN:
 
     @classmethod
     def default(
-        cls, topology: Literal["Plane", "Torus", "Cylinder"] = "Plane"
+        cls,
+        topology: Literal[
+            "Line", "Ring", "Plane", "Torus", "Cylinder"
+        ] = "Plane",
     ):
-        if topology.lower() == "plane":
+        if topology.lower() == "line":
+            manifold = Line()
+            return cls(manifold, spacing=0.075, alpha=3, sigma=1)
+
+        elif topology.lower() == "ring":
+            manifold = Ring()
+            return cls(manifold, spacing=0.075, alpha=3, sigma=1)
+
+        elif topology.lower() == "plane":
             manifold = Plane()
             return cls(manifold, spacing=0.075, alpha=3, sigma=1)
 
