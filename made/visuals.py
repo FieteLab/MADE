@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
-from .manifolds import AbstractManifold
 import numpy as np
+
+from .manifolds import AbstractManifold
+from .can import CAN
 
 
 def plot_lattice(
@@ -31,3 +33,53 @@ def plot_lattice(
         plt.colorbar(contour, ax=ax, label="Distance")
 
     return f, ax
+
+
+def can_connectivity_matrix(can: CAN):
+    """imshow the connectivity matrix"""
+    plt.imshow(can.connectivity_matrix, cmap="gray")
+    plt.colorbar()
+
+
+def can_connectivity(can: CAN):
+    """
+    Select 4 random neurons and plot their connectivity
+    to the rest of the lattice using contour plots.
+    """
+    f, axes = plt.subplots(2, 2, figsize=(10, 10))
+
+    total_neurons = can.neurons_coordinates.shape[0]
+    neurons_idx = np.random.choice(total_neurons, 4, replace=False)
+
+    # Reshape coordinates back to grid for plotting
+    X = can.neurons_coordinates[:, 0].reshape(can.N, can.N)
+    Y = can.neurons_coordinates[:, 1].reshape(can.N, can.N)
+
+    for i, ax in enumerate(axes.flatten()):
+        ax.set_aspect("equal")
+        ax.set(xlabel="$\\theta_1$", ylabel="$\\theta_2$")
+        ax.set_title(f"Neuron {neurons_idx[i]}")
+
+        # Get connectivity for this neuron and reshape to grid
+        neuron_connectivity = can.connectivity_matrix[neurons_idx[i]].reshape(
+            can.N, can.N
+        )
+
+        # Create contour plot
+        contour = ax.contourf(X, Y, neuron_connectivity, levels=25)
+        plt.colorbar(contour, ax=ax)
+
+        # Plot the selected neuron location
+        neuron_coords = can.neurons_coordinates[neurons_idx[i]]
+        ax.scatter(
+            neuron_coords[0],
+            neuron_coords[1],
+            color="red",
+            s=100,
+            marker="*",
+            label="Selected neuron",
+        )
+        ax.legend()
+
+    plt.tight_layout()
+    return f, axes

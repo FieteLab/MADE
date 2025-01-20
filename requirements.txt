@@ -1,3 +1,5 @@
 numpy
 matplotlib
 pre-commit
+black
+flake8
