@@ -3,7 +3,7 @@ import numpy as np
 from loguru import logger
 from typing import Literal
 
-from .manifolds import AbstractManifold
+from .manifolds import AbstractManifold, Plane
 
 
 def soft_relu(x):
@@ -67,7 +67,14 @@ class CAN:
 
         # initialize arrays to store the state and change in state of each neuron
         self.S = np.zeros((total_neurons, 1))
-        self.S_dot = np.zeros((total_neurons, 1))
+
+    @classmethod
+    def default(cls, topology: Literal["Plane"] = "Plane"):
+        if topology.lower() == "plane":
+            manifold = Plane()
+            return cls(manifold, N=48, alpha=2, sigma=1)
+        else:
+            raise ValueError(f"Invalid topology: {topology}")
 
     def reset(
         self,
@@ -100,8 +107,30 @@ class CAN:
             raise ValueError(f"Invalid mode: {mode}")
 
     def __call__(self):
-        self.S_dot = self.connectivity_matrix @ self.S + 1
-        self.S += (soft_relu(self.S_dot) - self.S) / self.tau
+        S_dot = self.connectivity_matrix @ self.S + 1
+        self.S += (soft_relu(S_dot) - self.S) / self.tau
 
-        if np.any(np.isnan(self.S)) or np.any(np.isnan(self.S_dot)):
+        if np.any(np.isnan(self.S)) or np.any(np.isnan(S_dot)):
             logger.error("NaN values detected in S or S_dot")
+
+    def step_stateless(self, S):
+        """Stateless version of the step function that takes state as input and returns new state"""
+        S_dot = self.connectivity_matrix @ S + 1
+        new_S = S + (soft_relu(S_dot) - S) / self.tau
+
+        if np.any(np.isnan(new_S)):
+            logger.error("NaN values detected in new state")
+
+        return new_S
+
+    def run(self, n_steps: int):
+        for _ in range(n_steps):
+            self()
+        return self.S
+
+    def run_stateless(self, S, n_steps: int):
+        """Stateless version of run that takes initial state and returns final state"""
+        current_S = S.copy()
+        for _ in range(n_steps):
+            current_S = self.step_stateless(current_S)
+        return current_S

@@ -3,3 +3,5 @@ matplotlib
 pre-commit
 black
 flake8
+loguru
+scikit-learn

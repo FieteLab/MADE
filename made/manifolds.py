@@ -11,8 +11,8 @@ class Range:
     start: float
     end: float
 
-    def sample(self, n: int) -> np.ndarray:
-        return np.linspace(self.start, self.end, n)
+    def sample(self, n: int, pad: float = 0.0) -> np.ndarray:
+        return np.linspace(self.start + pad, self.end - pad, n)
 
 
 # --------------------------------- parameter space --------------------------------- #
@@ -23,18 +23,18 @@ class ParameterSpace:
     def __post_init__(self):
         self.dim = len(self.ranges)
 
-    def sample(self, n: int) -> np.ndarray:
+    def sample(self, n: int, pad: float = 0.0) -> np.ndarray:
         """
         Returns points sampled from the parameter space.
         For 1D: returns n points as an (n, 1) array
         For 2D: returns n^2 points as an (n^2, 2) array in grid format
         """
         if self.dim == 1:
-            return np.array([r.sample(n) for r in self.ranges]).T
+            return np.array([r.sample(n, pad) for r in self.ranges]).T
         elif self.dim == 2:
             # Create meshgrid
-            x = self.ranges[0].sample(n)
-            y = self.ranges[1].sample(n)
+            x = self.ranges[0].sample(n, pad)
+            y = self.ranges[1].sample(n, pad)
             X, Y = np.meshgrid(x, y)
             # Return as (n^2, 2) array
             return np.column_stack((X.ravel(), Y.ravel()))
