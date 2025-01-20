@@ -5,6 +5,20 @@ from .manifolds import AbstractManifold
 from .can import CAN
 
 
+def clean_axes(ax: plt.Axes, aspect: str = "equal", title: str = ""):
+    ax.set_aspect(aspect)
+    ax.set(xlabel="$\\theta_1$", ylabel="$\\theta_2$")
+    # remove splines
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    # space out left/bottom splines
+    ax.spines["left"].set_position(("outward", 10))
+    ax.spines["bottom"].set_position(("outward", 10))
+
+    ax.set_title(title)
+
+
 def plot_lattice(
     mfld: AbstractManifold,
     show_distances: bool = False,
@@ -42,6 +56,8 @@ def plot_lattice(
             label="Selected point",
         )
 
+    clean_axes(ax)
+
     return f, ax
 
 
@@ -60,10 +76,6 @@ def can_connectivity(can: CAN, cmap="bwr", vmin=-1, vmax=0):
     Y = can.neurons_coordinates[:, 1].reshape(can.N, can.N)
 
     for i, ax in enumerate(axes.flatten()):
-        ax.set_aspect("equal")
-        ax.set(xlabel="$\\theta_1$", ylabel="$\\theta_2$")
-        ax.set_title(f"Neuron {neurons_idx[i]}")
-
         # Get connectivity for this neuron and reshape to grid
         neuron_connectivity = can.connectivity_matrix[neurons_idx[i]].reshape(
             can.N, can.N
@@ -92,6 +104,7 @@ def can_connectivity(can: CAN, cmap="bwr", vmin=-1, vmax=0):
             label="Selected neuron",
         )
         ax.legend()
+        clean_axes(ax, title=f"Neuron {neurons_idx[i]}")
 
     plt.tight_layout()
     return f, axes
@@ -119,5 +132,7 @@ def plot_can_state(can: CAN):
 
     # Add colorbar
     plt.colorbar(scatter, ax=ax, label="Neuron state")
+
+    clean_axes(ax, title="Neuron state")
 
     return f, ax

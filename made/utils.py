@@ -5,7 +5,7 @@ from functools import partial
 from .can import CAN
 
 
-def _simulate_single(initial_state, can, n_steps, radius=0.2):
+def _simulate_single(initial_state, can, n_steps, radius=0.5):
     # Initialize state based on the point and radius
     N = can.connectivity_matrix.shape[0]
     S = np.zeros((N, 1))

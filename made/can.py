@@ -3,7 +3,7 @@ import numpy as np
 from loguru import logger
 from typing import Literal
 
-from .manifolds import AbstractManifold, Plane
+from .manifolds import AbstractManifold, Plane, Torus
 
 
 def soft_relu(x):
@@ -68,11 +68,18 @@ class CAN:
         # initialize arrays to store the state and change in state of each neuron
         self.S = np.zeros((total_neurons, 1))
 
+    def idx2coord(self, idx: int, dim: int) -> np.ndarray:
+        rel = idx / self.N
+        return self.manifold.parameter_space.ranges[dim].rel2coord(rel)
+
     @classmethod
-    def default(cls, topology: Literal["Plane"] = "Plane"):
+    def default(cls, topology: Literal["Plane", "Torus"] = "Plane"):
         if topology.lower() == "plane":
             manifold = Plane()
-            return cls(manifold, N=48, alpha=2, sigma=1)
+            return cls(manifold, N=48, alpha=1, sigma=0.25)
+        elif topology.lower() == "torus":
+            manifold = Torus()
+            return cls(manifold, N=48, alpha=2.5, sigma=5)
         else:
             raise ValueError(f"Invalid topology: {topology}")
 
