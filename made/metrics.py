@@ -48,8 +48,14 @@ class Euclidean(Metric):
 
         # Use broadcasting to compute pairwise distances:
         # dist^2(x,y) = ||x||^2 + ||y||^2 - 2<x,y>
-        distances = np.sqrt(
-            square_norms[:, None] + square_norms[None, :] - 2 * X @ X.T
+        dot_product = X @ X.T
+
+        squared_distances = (
+            square_norms[:, None] + square_norms[None, :] - 2 * dot_product
         )
 
+        # Add small epsilon to prevent numerical issues with sqrt of very small numbers
+        # and clip negative values that might occur due to numerical precision
+        epsilon = 1e-10
+        distances = np.sqrt(np.maximum(squared_distances, epsilon))
         return distances

@@ -9,6 +9,7 @@ def plot_lattice(
     mfld: AbstractManifold,
     show_distances: bool = False,
     distance_point: np.ndarray = None,
+    cmap="Greens",
 ):
     f, ax = plt.subplots()
     ax.set_aspect("equal")
@@ -29,19 +30,22 @@ def plot_lattice(
         Z = distances.reshape(n, n)
 
         # Create contour plot
-        contour = ax.contourf(X, Y, Z, levels=25)
+        contour = ax.contourf(X, Y, Z, cmap=cmap, levels=25)
         plt.colorbar(contour, ax=ax, label="Distance")
+
+        ax.scatter(
+            distance_point[0],
+            distance_point[1],
+            color="red",
+            s=100,
+            marker="*",
+            label="Selected point",
+        )
 
     return f, ax
 
 
-def can_connectivity_matrix(can: CAN):
-    """imshow the connectivity matrix"""
-    plt.imshow(can.connectivity_matrix, cmap="gray")
-    plt.colorbar()
-
-
-def can_connectivity(can: CAN):
+def can_connectivity(can: CAN, cmap="bwr", vmin=-1, vmax=0):
     """
     Select 4 random neurons and plot their connectivity
     to the rest of the lattice using contour plots.
@@ -66,7 +70,15 @@ def can_connectivity(can: CAN):
         )
 
         # Create contour plot
-        contour = ax.contourf(X, Y, neuron_connectivity, levels=25)
+        contour = ax.contourf(
+            X,
+            Y,
+            neuron_connectivity,
+            levels=50,
+            cmap=cmap,
+            vmin=vmin,
+            vmax=vmax,
+        )
         plt.colorbar(contour, ax=ax)
 
         # Plot the selected neuron location
@@ -74,7 +86,7 @@ def can_connectivity(can: CAN):
         ax.scatter(
             neuron_coords[0],
             neuron_coords[1],
-            color="red",
+            color="black",
             s=100,
             marker="*",
             label="Selected neuron",
@@ -83,3 +95,29 @@ def can_connectivity(can: CAN):
 
     plt.tight_layout()
     return f, axes
+
+
+def plot_can_state(can: CAN):
+    """
+    Visualize the current state of the CAN using a scatter plot.
+    Each point represents a neuron, positioned at its coordinates,
+    with color indicating its state value using the inferno colormap.
+    """
+    f, ax = plt.subplots()
+    ax.set_aspect("equal")
+    ax.set(xlabel="$\\theta_1$", ylabel="$\\theta_2$")
+    can.manifold.visualize(ax)
+
+    # Create scatter plot with inferno colormap
+    scatter = ax.scatter(
+        can.neurons_coordinates[:, 0],
+        can.neurons_coordinates[:, 1],
+        c=can.S.ravel(),  # flatten to 1D array for coloring
+        cmap="inferno",
+        s=15,  # size of points
+    )
+
+    # Add colorbar
+    plt.colorbar(scatter, ax=ax, label="Neuron state")
+
+    return f, ax
