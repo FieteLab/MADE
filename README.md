@@ -25,6 +25,11 @@ pip install ManifoldAttractors
 ```
 
 ## Usage
+The python package is called `made`, so for example you'll import with:
+```python
+from made import manifolds
+from made.can import CAN
+```
 
 
 ### Example
