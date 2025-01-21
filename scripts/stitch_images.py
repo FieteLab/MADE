@@ -17,7 +17,7 @@ def stitch_images():
     cropped_images = []
     for img in images:
         width, height = img.size
-        crop_amount = int(width * 0.1)  # 10% crop from each side
+        crop_amount = int(width * 0.2)  # 10% crop from each side
         cropped = img.crop((crop_amount, 0, width - crop_amount, height))
         cropped_images.append(cropped)
 
