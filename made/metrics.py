@@ -164,8 +164,6 @@ class MobiusEuclidean(Metric):
         """
         self.T = T
         self.threshold = threshold
-        # Create periodic metric for the angular dimension
-        self.periodic = PeriodicEuclidean(dim=2, periodic=[False, True])
 
     def __call__(self, x: np.ndarray, y: np.ndarray) -> float:
         """
@@ -183,12 +181,21 @@ class MobiusEuclidean(Metric):
             x = x.reshape(1, -1)
         if len(y.shape) == 1:
             y = y.reshape(1, -1)
-        delta_theta_1 = np.abs(x[:, 1] - y[:, 1])
-        to_flip = np.where(delta_theta_1 > np.pi)[0]
-        x_transformed = x.copy()
-        x_transformed[to_flip, 0] = -x_transformed[to_flip, 0]
 
-        return self.periodic(x_transformed, y)
+        # Compute angular distance
+        delta_theta = np.abs(x[:, 1] - y[:, 1])
+
+        # For points with large angular distance, flip height of y
+        y_transformed = y.copy()
+        to_flip = delta_theta > self.threshold
+        y_transformed[to_flip, 0] = -y_transformed[to_flip, 0]
+
+        # Compute Euclidean distance with periodic boundary on θ
+        diff = x - y_transformed
+        # Wrap angular differences to [-π, π]
+        diff[:, 1] = np.mod(diff[:, 1] + np.pi, 2 * np.pi) - np.pi
+
+        return np.linalg.norm(diff, axis=1)
 
     def pairwise_distances(
         self, X: np.ndarray, weights_offset=lambda x: x
@@ -203,7 +210,7 @@ class MobiusEuclidean(Metric):
             array of shape (n_points, n_points) with pairwise distances[i,j] = dist(x_i, f(x_j))
         """
         # Apply weights offset to second set of points
-        X_transformed = weights_offset(X)
+        X_transformed = weights_offset(X.copy())
         n_points = X.shape[0]
         distances = np.zeros((n_points, n_points))
 

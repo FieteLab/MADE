@@ -341,7 +341,7 @@ def visualize_qan_connectivity(qan: QAN, cmap="bwr", vmin=-1, vmax=0):
     if isinstance(qan.cans[0].manifold, Sphere):
         f = plt.figure(figsize=(15, 10))
         for i, can in enumerate(qan.cans):
-            ax = f.add_subplot(2, 2, i + 1, projection="3d")
+            ax = f.add_subplot(2, 3, i + 1, projection="3d")
             _visualize_conn_sphere(ax, can, neuron_idx, cmap, vmin, vmax)
             ax.set_title(f"CAN {i+1}")
 

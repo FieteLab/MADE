@@ -129,3 +129,59 @@ class CylinderQAN(QAN):
             # wrap to [0, 2pi]
             theta[:, dim] = np.mod(theta[:, dim], 2 * np.pi)
         return theta
+
+
+# -------------------------------- Mobius band ------------------------------- #
+@dataclass
+class MobiusBandQAN(QAN):
+    manifold: AbstractManifold = manifolds.MobiusBand()
+    spacing: float = 0.1
+    alpha: float = 2
+    sigma: float = 2
+    offset_magnitude: float = 0.1
+
+    @staticmethod
+    def coordinates_offset(
+        theta: np.ndarray, dim: int, direction: int, offset_magnitude: float
+    ) -> np.ndarray:
+        theta = theta.copy()  # Make a copy to avoid modifying the original
+        if dim == 1:  # Angular dimension
+            theta[:, dim] += direction * offset_magnitude
+            theta[:, dim] = np.mod(theta[:, dim], 2 * np.pi)  # wrap to [0, 2π]
+        else:  # Height dimension
+            theta[:, dim] += direction * offset_magnitude
+        return theta
+
+
+# ---------------------------------- Sphere ---------------------------------- #
+@dataclass
+class SphereQAN(QAN):
+    manifold: AbstractManifold = manifolds.Sphere()
+    spacing: float = 0.075
+    alpha: float = 2
+    sigma: float = 3
+    offset_magnitude: float = 0.1
+
+    @staticmethod
+    def coordinates_offset(
+        theta: np.ndarray, dim: int, direction: int, offset_magnitude: float
+    ) -> np.ndarray:
+        offset = direction * offset_magnitude
+        x, y, z = 0, 1, 2  # map indices to coords
+        if dim == 0:
+            # Rotation around X axis: [0, -z, y]
+            theta[:, y] += -offset * theta[:, z]  # -z
+            theta[:, z] += offset * theta[:, y]  # y
+        elif dim == 1:
+            # Rotation around Y axis: [z, 0, -x]
+            theta[:, x] += -offset * theta[:, z]  # -x
+            theta[:, z] += offset * theta[:, x]  # z
+        else:
+            # Rotation around Z axis: [-y, x, 0]
+            theta[:, y] += -offset * theta[:, x]  # -y
+            theta[:, x] += offset * theta[:, y]  # x
+
+        # Normalize to keep points on the sphere
+        norms = np.sqrt(np.sum(theta**2, axis=1))
+        theta /= norms[:, None]
+        return theta
