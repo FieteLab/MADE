@@ -4,7 +4,7 @@ __pycache__/
 *$py.class
 dev.ipynb
 dev.py
-
+*.npy
 # C extensions
 *.so
 

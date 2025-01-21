@@ -240,3 +240,18 @@ class Sphere(AbstractManifold):
         ]
     )
     metric: Metric = SphericalDistance(dim)
+
+
+PADS = dict(
+    Plane=[0.1, 0.1],
+    Torus=[0, 0],
+    Cylinder=[0.2, 0.0],
+    Line=[
+        0.2,
+    ],
+    Ring=[
+        0,
+    ],
+    MobiusBand=[0.2, 0.0],
+    Sphere=[0, 0, 0],
+)
