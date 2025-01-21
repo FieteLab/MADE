@@ -133,6 +133,83 @@ def _visualize_conn_2d(ax, can, neuron_idx, cmap="bwr", vmin=-1, vmax=0):
     return ax
 
 
+def _visualize_conn_sphere_2d(
+    ax, can, neuron_idx, cmap="bwr", vmin=-1, vmax=0
+):
+    """Helper function to visualize connectivity for a sphere manifold using Mollweide projection."""
+    # Get connectivity for this neuron
+    neuron_connectivity = can.connectivity_matrix[neuron_idx]
+
+    # Convert cartesian coordinates to spherical coordinates (theta, phi)
+    x = can.neurons_coordinates[:, 0]
+    y = can.neurons_coordinates[:, 1]
+    z = can.neurons_coordinates[:, 2]
+
+    # Calculate spherical coordinates
+    theta = np.arccos(z)  # polar angle [0, pi]
+    phi = np.arctan2(y, x)  # azimuthal angle [-pi, pi]
+
+    # Convert to Mollweide projection coordinates
+    # First, rescale phi to [-pi, pi] and theta to [-pi/2, pi/2]
+    lat = np.pi / 2 - theta  # latitude [-pi/2, pi/2]
+    lon = phi  # longitude [-pi, pi]
+
+    # Mollweide projection equations
+    # We need to solve the equation: 2θ + sin(2θ) = π sin(lat) for θ
+    # Use a simple iterative solution
+    theta = lat
+    for i in range(4):  # usually converges in a few iterations
+        theta = theta - (
+            2 * theta + np.sin(2 * theta) - np.pi * np.sin(lat)
+        ) / (2 + 2 * np.cos(2 * theta))
+
+    x_proj = 2 * np.sqrt(2) / np.pi * lon * np.cos(theta)
+    y_proj = np.sqrt(2) * np.sin(theta)
+
+    # Create scatter plot with connectivity as color
+    scatter = ax.scatter(
+        x_proj,
+        y_proj,
+        c=neuron_connectivity,
+        cmap=cmap,
+        vmin=vmin,
+        vmax=vmax,
+        s=15,
+    )
+
+    # Plot the selected neuron location
+    neuron_coords = can.neurons_coordinates[neuron_idx]
+    # Project the selected neuron's coordinates
+    theta_n = np.arccos(neuron_coords[2])
+    phi_n = np.arctan2(neuron_coords[1], neuron_coords[0])
+    lat_n = np.pi / 2 - theta_n
+    lon_n = phi_n
+
+    # Solve for projection coordinates
+    theta_n = lat_n
+    for i in range(4):
+        theta_n = theta_n - (
+            2 * theta_n + np.sin(2 * theta_n) - np.pi * np.sin(lat_n)
+        ) / (2 + 2 * np.cos(2 * theta_n))
+
+    x_proj_n = 2 * np.sqrt(2) / np.pi * lon_n * np.cos(theta_n)
+    y_proj_n = np.sqrt(2) * np.sin(theta_n)
+
+    ax.scatter(
+        x_proj_n,
+        y_proj_n,
+        color="black",
+        s=100,
+        marker="*",
+        label="Selected neuron",
+    )
+
+    plt.colorbar(scatter, ax=ax)
+    ax.legend()
+    clean_axes(ax)
+    return ax
+
+
 # ---------------------------------------------------------------------------- #
 #                                      CAN                                     #
 # ---------------------------------------------------------------------------- #
@@ -233,17 +310,24 @@ def visualize_can_connectivity(can: CAN, cmap="bwr", vmin=-1, vmax=0):
     """
     Select 4 random neurons and plot their connectivity
     to the rest of the lattice using contour plots for 2D,
-    line plots for 1D, or 3D scatter for sphere.
+    line plots for 1D, or Mollweide projection for sphere.
     """
     total_neurons = can.neurons_coordinates.shape[0]
     neurons_idx = np.random.choice(total_neurons, 4, replace=False)
 
     if isinstance(can.manifold, Sphere):
-        f = plt.figure(figsize=(15, 10))
+        # Create a figure with both 3D and 2D projections
+        f = plt.figure(figsize=(20, 10))
         for i, neuron_idx in enumerate(neurons_idx):
-            ax = f.add_subplot(2, 2, i + 1, projection="3d")
-            _visualize_conn_sphere(ax, can, neuron_idx, cmap, vmin, vmax)
-            ax.set_title(f"Neuron {neuron_idx}")
+            # # 3D visualization
+            # ax1 = f.add_subplot(3, 2, i + 1, projection='3d')
+            # _visualize_conn_sphere(ax1, can, neuron_idx, cmap, vmin, vmax)
+            # ax1.set_title(f"Neuron {neuron_idx} (3D)")
+
+            # 2D Mollweide projection
+            ax2 = f.add_subplot(2, 2, i + 5)
+            _visualize_conn_sphere_2d(ax2, can, neuron_idx, cmap, vmin, vmax)
+            ax2.set_title(f"Neuron {neuron_idx} (Mollweide)")
 
     elif can.manifold.dim == 1:
         f, axes = plt.subplots(2, 2, figsize=(10, 10))
@@ -341,8 +425,8 @@ def visualize_qan_connectivity(qan: QAN, cmap="bwr", vmin=-1, vmax=0):
     if isinstance(qan.cans[0].manifold, Sphere):
         f = plt.figure(figsize=(15, 10))
         for i, can in enumerate(qan.cans):
-            ax = f.add_subplot(2, 3, i + 1, projection="3d")
-            _visualize_conn_sphere(ax, can, neuron_idx, cmap, vmin, vmax)
+            ax = f.add_subplot(3, 2, i + 1)
+            _visualize_conn_sphere_2d(ax, can, neuron_idx, cmap, vmin, vmax)
             ax.set_title(f"CAN {i+1}")
 
     elif qan.cans[0].manifold.dim == 1:
@@ -362,7 +446,12 @@ def visualize_qan_connectivity(qan: QAN, cmap="bwr", vmin=-1, vmax=0):
 
 
 def remove_jump(x):
-    jumps = np.where(np.diff(x, prepend=0) > 0.5)[0]
+    """
+    Find big deltas along any dimension and remove
+    the corresponding points from the array.
+    """
+    delta_x = np.diff(x, prepend=0, axis=0)
+    jumps = np.where(delta_x > 0.5)[0]
     x[jumps] = np.nan
     return x
 
@@ -438,11 +527,14 @@ def visualize_trajectory(
 
     else:
         # For 2D, plot x,y coordinates
+        traj1 = remove_jump(traj1)
+
         ax.plot(
             traj1[:, 0], traj1[:, 1], "b-", label="Trajectory 1", alpha=0.7
         )
-        ax.scatter(traj1[0, 0], traj1[0, 1], c="b", s=25)
+        ax.scatter(traj1[2, 0], traj1[2, 1], c="b", s=25)
         if traj2 is not None:
+            # traj2 = remove_jump(traj2)
             ax.plot(
                 traj2[:, 0],
                 traj2[:, 1],
@@ -450,7 +542,7 @@ def visualize_trajectory(
                 label="Trajectory 2",
                 alpha=0.7,
             )
-            ax.scatter(traj2[0, 0], traj2[0, 1], c="r", s=25)
+            ax.scatter(traj2[2, 0], traj2[2, 1], c="r", s=25)
         clean_axes(ax, title=title)
 
     if traj2 is not None:

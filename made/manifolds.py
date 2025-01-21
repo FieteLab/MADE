@@ -142,7 +142,7 @@ class SphereParameterSpace(ParameterSpace):
         self, spacing: float, pads: list[float] = None
     ) -> np.ndarray:
         """For sphere, we ignore spacing and just return 1000 evenly distributed points"""
-        return self.sample(1000)
+        return self.sample(1250)
 
 
 # ---------------------------------------------------------------------------- #
