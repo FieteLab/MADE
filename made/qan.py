@@ -1,6 +1,5 @@
 import numpy as np
 from dataclasses import dataclass
-import scipy.interpolate
 
 from made.manifolds import AbstractManifold
 from made import manifolds
@@ -47,14 +46,15 @@ class QAN:
         decoded_trajectory = []
         for t, theta in enumerate(trajectory):
             if t == 0:
-                continue
-            # compute variable velocity
-            theta_dot = (
-                self.compute_theta_dot(
-                    theta.copy(), trajectory[t - 1, :].copy()
+                theta_dot = np.zeros(theta.shape)
+            else:
+                # compute variable velocity
+                theta_dot = (
+                    self.compute_theta_dot(
+                        theta.copy(), trajectory[t - 1, :].copy()
+                    )
+                    * dT
                 )
-                * dT
-            )
 
             # get total state
             S_tot = np.mean(states, axis=0)
@@ -70,13 +70,11 @@ class QAN:
         out = np.array(decoded_trajectory)
         if len(out.shape) == 1:
             out = out.reshape(-1, 1)
+        assert (
+            out.shape == trajectory.shape
+        ), f"out.shape: {out.shape}, trajectory.shape: {trajectory.shape}"
 
-        # interpolate between trajectory points to smooth it
-        curr_len = len(out)
-        new_len = curr_len * 10
-        return scipy.interpolate.interp1d(
-            np.arange(curr_len), out.T, kind="linear", fill_value="extrapolate"
-        )(np.arange(new_len)).T
+        return out
 
     def decode_state(self, S: np.ndarray) -> np.ndarray:
         """Decode the network state into manifold coordinates by finding the peak activation location.
@@ -104,7 +102,7 @@ class LineQAN(QAN):
     alpha: float = 3
     sigma: float = 1
     offset_magnitude: float = 0.2
-    beta: float = 2e2
+    beta: float = 1e2
 
     @staticmethod
     def coordinates_offset(
@@ -157,7 +155,7 @@ class RingQAN(QAN):
     alpha: float = 3
     sigma: float = 1
     offset_magnitude: float = 0.2
-    beta: float = 1.1e2
+    beta: float = 1e2
 
     @staticmethod
     def coordinates_offset(
@@ -342,12 +340,6 @@ class TorusQAN(QAN):
         # If even index, use positive direction, if odd use negative
         sign = 1 if i % 2 == 0 else -1
 
-        # For θ₂, flip direction based on angle
-        if dim == 1:
-            # Flip the direction when crossing the twist
-            if theta[0] > np.pi:
-                sign = -sign
-
         return sign * self.beta * theta_dot[dim]
 
 
@@ -355,11 +347,11 @@ class TorusQAN(QAN):
 @dataclass
 class CylinderQAN(QAN):
     manifold: AbstractManifold = manifolds.Cylinder()
-    spacing: float = 0.1
+    spacing: float = 0.2
     alpha: float = 2
     sigma: float = 1
     offset_magnitude: float = 0.2
-    beta: float = 1.4e2  # control gain for velocity input
+    beta: float = 1.6e2  # control gain for velocity input
 
     @staticmethod
     def coordinates_offset(
@@ -429,13 +421,6 @@ class CylinderQAN(QAN):
         dim = i // 2
         # If even index, use positive direction, if odd use negative
         sign = 1 if i % 2 == 0 else -1
-
-        # For z, flip direction based on angle
-        if dim == 0:
-            # Flip the height direction when crossing the twist
-            if theta[1] > np.pi:
-                sign = -sign
-
         return sign * self.beta * theta_dot[dim]
 
 

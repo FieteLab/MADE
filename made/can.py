@@ -124,7 +124,7 @@ class CAN:
 
         elif topology.lower() == "cylinder":
             manifold = Cylinder()
-            return cls(manifold, spacing=0.1, alpha=2, sigma=1)
+            return cls(manifold, spacing=0.2, alpha=2, sigma=1)
 
         elif topology.lower() == "mobiusband":
             manifold = MobiusBand()
