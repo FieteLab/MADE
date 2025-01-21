@@ -11,6 +11,7 @@ from .manifolds import (
     Line,
     Ring,
     MobiusBand,
+    Sphere,
 )
 
 
@@ -96,7 +97,13 @@ class CAN:
     def default(
         cls,
         topology: Literal[
-            "Line", "Ring", "Plane", "Torus", "Cylinder", "MobiusBand"
+            "Line",
+            "Ring",
+            "Plane",
+            "Torus",
+            "Cylinder",
+            "MobiusBand",
+            "Sphere",
         ] = "Plane",
     ):
         if topology.lower() == "line":
@@ -122,6 +129,10 @@ class CAN:
         elif topology.lower() == "mobiusband":
             manifold = MobiusBand()
             return cls(manifold, spacing=0.1, alpha=2, sigma=2)
+
+        elif topology.lower() == "sphere":
+            manifold = Sphere()
+            return cls(manifold, spacing=0.075, alpha=2, sigma=3)
 
         else:
             raise ValueError(f"Invalid topology: {topology}")

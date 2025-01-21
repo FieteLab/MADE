@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .manifolds import AbstractManifold
+from .manifolds import AbstractManifold, Sphere
 from .can import CAN
 
 
@@ -60,11 +60,8 @@ def plot_lattice(
 
         clean_axes(ax, ylabel="Distance")
 
-    else:
+    elif not isinstance(mfld, Sphere):
         f, ax = plt.subplots()
-        ax.set_aspect("equal")
-        ax.set(xlabel="$\\theta_1$", ylabel="$\\theta_2$")
-
         mfld.visualize(ax)
 
         # If show_distances, sample from param space and plot contours of distance from distance_point
@@ -94,20 +91,79 @@ def plot_lattice(
 
         clean_axes(ax)
 
+    else:
+        f = plt.figure()
+        ax = f.add_subplot(111, projection="3d")
+
+        pts = mfld.parameter_space.sample(1000)
+
+        if show_distances and distance_point is not None:
+            distances = mfld.metric(pts, distance_point)
+            ax.scatter(
+                pts[:, 0],
+                pts[:, 1],
+                pts[:, 2],
+                c=distances,
+                cmap="inferno",
+                s=15,
+            )
+        else:
+            ax.scatter(pts[:, 0], pts[:, 1], pts[:, 2], s=15)
+
+        clean_axes(ax, title="Neuron state")
+
     return f, ax
 
 
 def can_connectivity(can: CAN, cmap="bwr", vmin=-1, vmax=0):
     """
     Select 4 random neurons and plot their connectivity
-    to the rest of the lattice using contour plots for 2D
-    or line plots for 1D.
+    to the rest of the lattice using contour plots for 2D,
+    line plots for 1D, or 3D scatter for sphere.
     """
-    f, axes = plt.subplots(2, 2, figsize=(10, 10))
     total_neurons = can.neurons_coordinates.shape[0]
     neurons_idx = np.random.choice(total_neurons, 4, replace=False)
 
-    if can.manifold.dim == 1:
+    if isinstance(can.manifold, Sphere):
+        f = plt.figure(figsize=(15, 10))
+        for i in range(4):
+            ax = f.add_subplot(2, 2, i + 1, projection="3d")
+
+            # Get connectivity for this neuron
+            neuron_connectivity = can.connectivity_matrix[neurons_idx[i]]
+
+            # Create 3D scatter plot with connectivity as color
+            scatter = ax.scatter(
+                can.neurons_coordinates[:, 0],
+                can.neurons_coordinates[:, 1],
+                can.neurons_coordinates[:, 2],
+                c=neuron_connectivity,
+                cmap=cmap,
+                vmin=vmin,
+                vmax=vmax,
+                s=15,
+            )
+
+            # Plot the selected neuron location
+            neuron_coords = can.neurons_coordinates[neurons_idx[i]]
+            ax.scatter(
+                neuron_coords[0],
+                neuron_coords[1],
+                neuron_coords[2],
+                color="black",
+                s=100,
+                marker="*",
+                label="Selected neuron",
+            )
+
+            plt.colorbar(scatter, ax=ax)
+            ax.legend()
+            ax.set_title(f"Neuron {neurons_idx[i]}")
+
+        axes = f.axes
+
+    elif can.manifold.dim == 1:
+        f, axes = plt.subplots(2, 2, figsize=(10, 10))
         for i, ax in enumerate(axes.flatten()):
             # Get connectivity for this neuron
             neuron_connectivity = can.connectivity_matrix[neurons_idx[i]]
@@ -136,6 +192,7 @@ def can_connectivity(can: CAN, cmap="bwr", vmin=-1, vmax=0):
                 ax, title=f"Neuron {neurons_idx[i]}", ylabel="Connectivity"
             )
     else:
+        f, axes = plt.subplots(2, 2, figsize=(10, 10))
         # Calculate grid dimensions based on spacing
         nx = can.nx(0)
         ny = can.nx(1)
@@ -184,40 +241,59 @@ def plot_can_state(can: CAN):
     """
     Visualize the current state of the CAN using a scatter plot.
     For 1D manifolds, plots along a line. For 2D manifolds, plots
-    in the plane with color indicating state value.
+    in the plane with color indicating state value. For sphere,
+    plots in 3D with color indicating state value.
     """
-    f, ax = plt.subplots()
-    can.manifold.visualize(ax)
+    if isinstance(can.manifold, Sphere):
+        f = plt.figure()
+        ax = f.add_subplot(111, projection="3d")
 
-    if can.manifold.dim == 1:
-        # For 1D, plot state values as heights above the line
-        ax.plot(
-            can.neurons_coordinates[:, 0],
-            can.S.ravel(),
-            "b-",
-            label="Neuron states",
-        )
-        ax.scatter(
-            can.neurons_coordinates[:, 0],
-            can.S.ravel(),
-            c=can.S.ravel(),
-            cmap="inferno",
-            s=15,
-        )
-    else:
-        # For 2D, use scatter plot with color indicating state
+        # Create 3D scatter plot with state as color
         scatter = ax.scatter(
             can.neurons_coordinates[:, 0],
             can.neurons_coordinates[:, 1],
+            can.neurons_coordinates[:, 2],
             c=can.S.ravel(),
             cmap="inferno",
             s=15,
         )
         plt.colorbar(scatter, ax=ax, label="Neuron state")
+        ax.set_title("Neuron state")
 
-    clean_axes(
-        ax,
-        title="Neuron state",
-        ylabel="Activation" if can.manifold.dim == 1 else "$\theta_2$",
-    )
+    else:
+        f, ax = plt.subplots()
+        can.manifold.visualize(ax)
+
+        if can.manifold.dim == 1:
+            # For 1D, plot state values as heights above the line
+            ax.plot(
+                can.neurons_coordinates[:, 0],
+                can.S.ravel(),
+                "b-",
+                label="Neuron states",
+            )
+            ax.scatter(
+                can.neurons_coordinates[:, 0],
+                can.S.ravel(),
+                c=can.S.ravel(),
+                cmap="inferno",
+                s=15,
+            )
+        else:
+            # For 2D, use scatter plot with color indicating state
+            scatter = ax.scatter(
+                can.neurons_coordinates[:, 0],
+                can.neurons_coordinates[:, 1],
+                c=can.S.ravel(),
+                cmap="inferno",
+                s=15,
+            )
+            plt.colorbar(scatter, ax=ax, label="Neuron state")
+
+        clean_axes(
+            ax,
+            title="Neuron state",
+            ylabel="Activation" if can.manifold.dim == 1 else "$\theta_2$",
+        )
+
     return f, ax

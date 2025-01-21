@@ -189,3 +189,70 @@ class MobiusEuclidean(Metric):
             distances[i, :] = self(X, X[i : i + 1])
 
         return distances
+
+
+# ---------------------------------------------------------------------------- #
+#                               SphericalDistance                               #
+# ---------------------------------------------------------------------------- #
+class SphericalDistance(Metric):
+    def __init__(self, radius: float = 1.0):
+        """
+        Initialize SphericalDistance metric for points on a sphere using great circle distance.
+
+        Args:
+            radius: radius of the sphere (default=1.0 for unit sphere)
+        """
+        self.radius = radius
+        self.dim = 3  # x,y,z coordinates
+
+    def __call__(self, x: np.ndarray, y: np.ndarray) -> float:
+        """
+        Compute the great circle distance between points on a sphere.
+        Uses the dot product formula: d = R * arccos(<x,y>/(|x||y|))
+
+        Args:
+            x, y: points of shape (n, 3) or (3,) representing points in 3D Cartesian coordinates
+        Returns:
+            distances with same units as radius
+        """
+        # ensure shapes consistency
+        if len(x.shape) == 1:
+            x = x.reshape(1, -1)
+        if len(y.shape) == 1:
+            y = y.reshape(1, -1)
+
+        # Normalize vectors to ensure they're on unit sphere
+        x_norm = x / np.linalg.norm(x, axis=1, keepdims=True)
+        y_norm = y / np.linalg.norm(y, axis=1, keepdims=True)
+
+        # Compute dot product
+        dot_product = np.sum(x_norm * y_norm, axis=1)
+
+        # Clip to avoid numerical issues with arccos
+        dot_product = np.clip(dot_product, -1.0, 1.0)
+
+        # Distance = R * arccos(dot_product)
+        return self.radius * np.arccos(dot_product)
+
+    def pairwise_distances(self, X: np.ndarray) -> np.ndarray:
+        """
+        Compute pairwise great circle distances between all points on the sphere.
+
+        Args:
+            X: array of shape (n_points, 3) representing points in 3D Cartesian coordinates
+        Returns:
+            array of shape (n_points, n_points) with pairwise distances
+        """
+        # Normalize all vectors to unit sphere
+        X_norm = X / np.linalg.norm(X, axis=1, keepdims=True)
+
+        # Compute all pairwise dot products
+        dot_products = X_norm @ X_norm.T
+
+        # Clip to avoid numerical issues
+        dot_products = np.clip(dot_products, -1.0, 1.0)
+
+        # Convert to distances
+        distances = self.radius * np.arccos(dot_products)
+
+        return distances

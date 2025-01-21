@@ -2,7 +2,13 @@ from dataclasses import dataclass
 import matplotlib.pyplot as plt
 import numpy as np
 
-from made.metrics import Metric, Euclidean, PeriodicEuclidean, MobiusEuclidean
+from made.metrics import (
+    Metric,
+    Euclidean,
+    PeriodicEuclidean,
+    MobiusEuclidean,
+    SphericalDistance,
+)
 
 
 # ----------------------------------- range ---------------------------------- #
@@ -113,6 +119,32 @@ class ParameterSpace:
             ax.add_patch(rect)
 
 
+class SphereParameterSpace(ParameterSpace):
+    def sample(self, n: int, **kwargs) -> np.ndarray:
+        """Returns n approximately evenly distributed points on a unit sphere using fibonacci sphere method"""
+        points = np.zeros((n, 3))
+        phi = np.pi * (3 - np.sqrt(5))  # golden angle in radians
+
+        for i in range(n):
+            y = 1 - (i / float(n)) * 2  # y goes from 1 to -1
+            radius = np.sqrt(1 - y * y)  # radius at y
+
+            theta = phi * i  # golden angle increment
+
+            x = np.cos(theta) * radius
+            z = np.sin(theta) * radius
+
+            points[i] = [x, y, z]
+
+        return points
+
+    def sample_with_spacing(
+        self, spacing: float, pads: list[float] = None
+    ) -> np.ndarray:
+        """For sphere, we ignore spacing and just return 1000 evenly distributed points"""
+        return self.sample(1000)
+
+
 # ---------------------------------------------------------------------------- #
 #                                   MANIFOLDS                                  #
 # ---------------------------------------------------------------------------- #
@@ -189,3 +221,22 @@ class MobiusBand(AbstractManifold):
         [Range(-2, 2, periodic=False), Range(0, 2 * np.pi, periodic=True)]
     )
     metric: Metric = MobiusEuclidean(T=2.0)
+
+
+# ---------------------------------- sphere ---------------------------------- #
+@dataclass
+class Sphere(AbstractManifold):
+    """
+    Although the sphere is a 2D manifold, we consider the unit sphere embeded in 3D space
+    here, and thus have 3D coordinates.
+    """
+
+    dim: int = 3
+    parameter_space: ParameterSpace = SphereParameterSpace(
+        [
+            Range(-1, 1, periodic=False),
+            Range(-1, 1, periodic=False),
+            Range(-1, 1, periodic=False),
+        ]
+    )
+    metric: Metric = SphericalDistance(dim)
