@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import matplotlib.pyplot as plt
 import numpy as np
 
-from made.metrics import Metric, Euclidean, PeriodicEuclidean
+from made.metrics import Metric, Euclidean, PeriodicEuclidean, MobiusEuclidean
 
 
 # ----------------------------------- range ---------------------------------- #
@@ -179,3 +179,13 @@ class Torus(AbstractManifold):
         ]
     )
     metric: Metric = PeriodicEuclidean(dim, periodic=[True, True])
+
+
+# --------------------------------- mobius band --------------------------------- #
+@dataclass
+class MobiusBand(AbstractManifold):
+    dim: int = 2
+    parameter_space: ParameterSpace = ParameterSpace(
+        [Range(-2, 2, periodic=False), Range(0, 2 * np.pi, periodic=True)]
+    )
+    metric: Metric = MobiusEuclidean(T=2.0)

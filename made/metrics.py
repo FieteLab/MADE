@@ -127,3 +127,65 @@ class PeriodicEuclidean(Metric):
             distances[i, :] = self(X[i : i + 1], X)
 
         return distances
+
+
+# ---------------------------------------------------------------------------- #
+#                               MobiusEuclidean                                  #
+# ---------------------------------------------------------------------------- #
+class MobiusEuclidean(Metric):
+    def __init__(self, T: float = 2.0, threshold: float = np.pi):
+        """
+        Initialize MobiusEuclidean metric for a Möbius strip.
+
+        The metric assumes points are parametrized by:
+            - t ∈ [-T, T] (height)
+            - θ ∈ [0, 2π] (angle)
+
+        Args:
+            T: height of the manifold in the non-periodic direction
+            threshold: angular threshold to determine if points are on the "same side"
+        """
+        self.T = T
+        self.threshold = threshold
+        # Create periodic metric for the angular dimension
+        self.periodic = PeriodicEuclidean(dim=2, periodic=[False, True])
+
+    def __call__(self, x: np.ndarray, y: np.ndarray) -> float:
+        """
+        Compute distance between points on a Möbius strip.
+
+        For points with angular distance > threshold, one point's height
+        is flipped before computing the distance to account for the
+        strip's twist.
+
+        Args:
+            x, y: points of shape (n, 2) or (2,) where each point is (t, θ)
+        """
+        # ensure shapes consistency
+        if len(x.shape) == 1:
+            x = x.reshape(1, -1)
+        if len(y.shape) == 1:
+            y = y.reshape(1, -1)
+        delta_theta_1 = np.abs(x[:, 1] - y[:, 1])
+        to_flip = np.where(delta_theta_1 > np.pi)[0]
+        x_transformed = x.copy()
+        x_transformed[to_flip, 0] = -x_transformed[to_flip, 0]
+
+        return self.periodic(x_transformed, y)
+
+    def pairwise_distances(self, X: np.ndarray) -> np.ndarray:
+        """
+        Compute pairwise distances between all points on the Möbius strip.
+
+        Args:
+            X: array of shape (n_points, 2) where each point is (t, θ)
+        Returns:
+            array of shape (n_points, n_points) with pairwise distances
+        """
+        n_points = X.shape[0]
+        distances = np.zeros((n_points, n_points))
+
+        for i in range(n_points):
+            distances[i, :] = self(X, X[i : i + 1])
+
+        return distances

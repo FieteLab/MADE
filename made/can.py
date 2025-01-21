@@ -3,7 +3,15 @@ import numpy as np
 from loguru import logger
 from typing import Literal
 
-from .manifolds import AbstractManifold, Plane, Torus, Cylinder, Line, Ring
+from .manifolds import (
+    AbstractManifold,
+    Plane,
+    Torus,
+    Cylinder,
+    Line,
+    Ring,
+    MobiusBand,
+)
 
 
 def soft_relu(x):
@@ -88,7 +96,7 @@ class CAN:
     def default(
         cls,
         topology: Literal[
-            "Line", "Ring", "Plane", "Torus", "Cylinder"
+            "Line", "Ring", "Plane", "Torus", "Cylinder", "MobiusBand"
         ] = "Plane",
     ):
         if topology.lower() == "line":
@@ -110,6 +118,10 @@ class CAN:
         elif topology.lower() == "cylinder":
             manifold = Cylinder()
             return cls(manifold, spacing=0.1, alpha=2, sigma=1)
+
+        elif topology.lower() == "mobiusband":
+            manifold = MobiusBand()
+            return cls(manifold, spacing=0.1, alpha=2, sigma=2)
 
         else:
             raise ValueError(f"Invalid topology: {topology}")
@@ -141,7 +153,7 @@ class CAN:
                 point = point.reshape(1, -1)
 
             # Calculate distances from the point to all neurons
-            distances = self.manifold.metric(point, self.neurons_coordinates)
+            distances = self.manifold.metric(self.neurons_coordinates, point)
             radius = np.max(distances) * 0.1
 
             # Set states based on distances
