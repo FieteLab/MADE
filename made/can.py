@@ -15,8 +15,8 @@ from .manifolds import (
 )
 
 
-def soft_relu(x):
-    return np.log(1 + np.exp(x))
+def relu(x):
+    return np.maximum(0, x)
 
 
 # ---------------------------------------------------------------------------- #
@@ -47,14 +47,18 @@ def quality_check(X: np.ndarray, name: str):
         logger.error(f"Inf values detected in {name}")
 
 
+def default_weights_offset(x):
+    return x
+
+
 @dataclass
 class CAN:
     manifold: AbstractManifold
     spacing: float  # spacing between neurons
     alpha: float
     sigma: float
-    tau: float = 1.7
-    weights_offset: Callable = lambda x: x
+    tau: float = 5
+    weights_offset: Callable = default_weights_offset
 
     def __post_init__(self):
         self.kernel = Kernel(self.alpha, self.sigma)
@@ -165,9 +169,7 @@ class CAN:
                 point = point.reshape(1, -1)
 
             # Calculate distances from the point to all neurons
-            distances = self.manifold.metric(
-                self.neurons_coordinates, self.weights_offset(point)
-            )
+            distances = self.manifold.metric(self.neurons_coordinates, point)
             radius = np.max(distances) * 0.1
 
             # Set states based on distances
@@ -182,10 +184,10 @@ class CAN:
     def step_stateless(self, S, u=0):
         """Stateless version of the step function that takes state as input and returns new state"""
         S_dot = self.connectivity_matrix @ S + u + 1
-        new_S = S + (soft_relu(S_dot) - S) / self.tau
+        new_S = S + (relu(S_dot) - S) / self.tau
 
         if np.any(np.isnan(new_S)):
-            logger.error("NaN values detected in new state")
+            raise ValueError(f"NaN values detected in new state: {new_S}")
 
         return new_S
 

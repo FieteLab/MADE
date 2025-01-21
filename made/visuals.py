@@ -323,6 +323,44 @@ def visualize_can_state(can: CAN):
     return f, ax
 
 
+# ---------------------------------------------------------------------------- #
+#                                      QAN                                     #
+# ---------------------------------------------------------------------------- #
+
+
+def visualize_qan_connectivity(qan: QAN, cmap="bwr", vmin=-1, vmax=0):
+    """
+    Select 1 random neuron and visualize its connectivity in each CAN of the QAN.
+    Each CAN's connectivity is shown in a separate subplot.
+    """
+    # Select random neuron index
+    total_neurons = qan.cans[0].neurons_coordinates.shape[0]
+    neuron_idx = np.random.choice(total_neurons)
+
+    # Create figure based on manifold type
+    if isinstance(qan.cans[0].manifold, Sphere):
+        f = plt.figure(figsize=(15, 10))
+        for i, can in enumerate(qan.cans):
+            ax = f.add_subplot(2, 3, i + 1, projection="3d")
+            _visualize_conn_sphere(ax, can, neuron_idx, cmap, vmin, vmax)
+            ax.set_title(f"CAN {i+1}")
+
+    elif qan.cans[0].manifold.dim == 1:
+        f, axes = plt.subplots(2, 1, figsize=(10, 10))
+        for i, (ax, can) in enumerate(zip(axes.flatten(), qan.cans)):
+            _visualize_conn_1d(ax, can, neuron_idx)
+            ax.set_title(f"CAN {i+1}")
+
+    else:
+        f, axes = plt.subplots(2, 2, figsize=(10, 10))
+        for i, (ax, can) in enumerate(zip(axes.flatten(), qan.cans)):
+            _visualize_conn_2d(ax, can, neuron_idx, cmap, vmin, vmax)
+            ax.set_title(f"CAN {i+1}")
+
+    plt.tight_layout()
+    return f, f.axes
+
+
 def remove_jump(x):
     jumps = np.where(np.diff(x, prepend=0) > 0.5)[0]
     x[jumps] = np.nan
@@ -369,6 +407,7 @@ def visualize_trajectory(
         ax.plot(
             traj1[:, 0], traj1[:, 1], "b-", label="Trajectory 1", alpha=0.7
         )
+        ax.scatter(traj1[0, 0], traj1[0, 1], c="b", s=25)
         if traj2 is not None:
             ax.plot(
                 traj2[:, 0],
@@ -377,47 +416,10 @@ def visualize_trajectory(
                 label="Trajectory 2",
                 alpha=0.7,
             )
+            ax.scatter(traj2[0, 0], traj2[0, 1], c="r", s=25)
         clean_axes(ax, title=title)
 
     if traj2 is not None:
         ax.legend()
 
     return f, ax
-
-
-# ---------------------------------------------------------------------------- #
-#                                      QAN                                     #
-# ---------------------------------------------------------------------------- #
-
-
-def visualize_qan_connectivity(qan: QAN, cmap="bwr", vmin=-1, vmax=0):
-    """
-    Select 1 random neuron and visualize its connectivity in each CAN of the QAN.
-    Each CAN's connectivity is shown in a separate subplot.
-    """
-    # Select random neuron index
-    total_neurons = qan.cans[0].neurons_coordinates.shape[0]
-    neuron_idx = np.random.choice(total_neurons)
-
-    # Create figure based on manifold type
-    if isinstance(qan.cans[0].manifold, Sphere):
-        f = plt.figure(figsize=(15, 10))
-        for i, can in enumerate(qan.cans):
-            ax = f.add_subplot(2, 3, i + 1, projection="3d")
-            _visualize_conn_sphere(ax, can, neuron_idx, cmap, vmin, vmax)
-            ax.set_title(f"CAN {i+1}")
-
-    elif qan.cans[0].manifold.dim == 1:
-        f, axes = plt.subplots(2, 1, figsize=(10, 10))
-        for i, (ax, can) in enumerate(zip(axes.flatten(), qan.cans)):
-            _visualize_conn_1d(ax, can, neuron_idx)
-            ax.set_title(f"CAN {i+1}")
-
-    else:
-        f, axes = plt.subplots(2, 2, figsize=(10, 10))
-        for i, (ax, can) in enumerate(zip(axes.flatten(), qan.cans)):
-            _visualize_conn_2d(ax, can, neuron_idx, cmap, vmin, vmax)
-            ax.set_title(f"CAN {i+1}")
-
-    plt.tight_layout()
-    return f, f.axes

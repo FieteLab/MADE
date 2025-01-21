@@ -243,7 +243,7 @@ class Sphere(AbstractManifold):
 
 
 PADS = dict(
-    Plane=[0.1, 0.1],
+    Plane=[0.2, 0.2],
     Torus=[0, 0],
     Cylinder=[0.2, 0.0],
     Line=[

@@ -1,5 +1,6 @@
 import numpy as np
 from dataclasses import dataclass
+import scipy.interpolate
 
 from made.manifolds import AbstractManifold
 from made import manifolds
@@ -43,8 +44,6 @@ class QAN:
             states.append(can.S)
 
         # 2. run simulation
-        S = self.cans[0].S.copy()
-
         decoded_trajectory = []
         for t, theta in enumerate(trajectory):
             if t == 0:
@@ -57,24 +56,39 @@ class QAN:
                 * dT
             )
 
-            # update each CAN
+            # get total state
+            S_tot = np.mean(states, axis=0)
+
+            # update each CAN using the total state
             for i, can in enumerate(self.cans):
                 can_input = self.compute_can_input(i, theta_dot)
-                states[i] = can.step_stateless(S, can_input)
-
-            # get the current state as the sum of all CAN states
-            S = np.sum(states, axis=0)
+                states[i] = can.step_stateless(S_tot, can_input)
 
             # decode the state into a trajectory
-            decoded_trajectory.append(self.decode_state(S))
+            decoded_trajectory.append(self.decode_state(S_tot))
+
         out = np.array(decoded_trajectory)
         if len(out.shape) == 1:
             out = out.reshape(-1, 1)
-        return out
+
+        # interpolate between trajectory points to smooth it
+        curr_len = len(out)
+        new_len = curr_len * 10
+        return scipy.interpolate.interp1d(
+            np.arange(curr_len), out.T, kind="linear", fill_value="extrapolate"
+        )(np.arange(new_len)).T
 
     def decode_state(self, S: np.ndarray) -> np.ndarray:
+        """Decode the network state into manifold coordinates by finding the peak activation location.
+
+        Args:
+            S: The network state vector
+
+        Returns:
+            The coordinates on the manifold corresponding to the peak activation
+        """
         max_idx = np.argmax(S)
-        return self.cans[0].idx2coord(max_idx, 0)
+        return self.cans[0].neurons_coordinates[max_idx]
 
 
 # ---------------------------------------------------------------------------- #
@@ -89,8 +103,8 @@ class LineQAN(QAN):
     spacing: float = 0.075
     alpha: float = 3
     sigma: float = 1
-    offset_magnitude: float = 0.5
-    beta: float = 1e2
+    offset_magnitude: float = 0.2
+    beta: float = 2e2
 
     @staticmethod
     def coordinates_offset(
@@ -141,7 +155,7 @@ class RingQAN(QAN):
     alpha: float = 3
     sigma: float = 1
     offset_magnitude: float = 0.2
-    beta: float = 4e2
+    beta: float = 1.1e2
 
     @staticmethod
     def coordinates_offset(
@@ -203,10 +217,11 @@ class RingQAN(QAN):
 @dataclass
 class PlaneQAN(QAN):
     manifold: AbstractManifold = manifolds.Plane()
-    spacing: float = 0.075
+    spacing: float = 0.065
     alpha: float = 3
     sigma: float = 1
-    offset_magnitude: float = 0.1
+    offset_magnitude: float = 0.2
+    beta: float = 1e2
 
     @staticmethod
     def coordinates_offset(
@@ -214,6 +229,45 @@ class PlaneQAN(QAN):
     ) -> np.ndarray:
         theta[:, dim] += direction * offset_magnitude
         return theta
+
+    def make_trajectory(self, n_steps: int = 1000) -> np.ndarray:
+        """Creates a space-filling trajectory over the plane using a modified Lissajous curve."""
+        trajectory = np.zeros((n_steps, self.manifold.dim))
+
+        # Get parameter space bounds with padding
+        padding = 0.4
+        x_min = self.manifold.parameter_space.ranges[0].start + padding
+        x_max = self.manifold.parameter_space.ranges[0].end - padding
+        y_min = self.manifold.parameter_space.ranges[1].start + padding
+        y_max = self.manifold.parameter_space.ranges[1].end - padding
+
+        # Create time parameter
+        t = np.linspace(np.pi / 2, 2 * np.pi + np.pi / 2 - 0.1, n_steps)
+
+        # Generate modified Lissajous curve
+        # Using different frequencies and phase shifts creates a space-filling pattern
+        x_scale = (x_max - x_min) / 2
+        y_scale = (y_max - y_min) / 2
+        x_offset = (x_max + x_min) / 2
+        y_offset = (y_max + y_min) / 2
+
+        trajectory[:, 0] = x_scale * np.sin(2 * t + np.pi) + x_offset
+        trajectory[:, 1] = y_scale * np.sin(3 * t + np.pi / 2) + y_offset
+
+        return trajectory
+
+    def compute_theta_dot(
+        self, theta: np.ndarray, theta_prev: np.ndarray
+    ) -> np.ndarray:
+        """Compute velocity as the difference between current and previous position."""
+        return theta - theta_prev
+
+    def compute_can_input(self, i: int, theta_dot: np.ndarray) -> np.ndarray:
+        # Determine which dimension this CAN handles
+        dim = i // 2
+        # If even index, use positive direction, if odd use negative
+        sign = 1 if i % 2 == 0 else -1
+        return sign * self.beta * theta_dot[dim]
 
 
 # ----------------------------------- Torus ---------------------------------- #
