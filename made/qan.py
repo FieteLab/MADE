@@ -40,7 +40,7 @@ class QAN:
         theta_0 = trajectory[0, :].copy()
         states = []
         for can in self.cans:
-            can.reset(mode="point", point=theta_0)
+            can.reset(mode="point", point=theta_0, radius=0.05)
             states.append(can.S)
 
         # 2. run simulation
@@ -277,7 +277,8 @@ class TorusQAN(QAN):
     spacing: float = 0.2
     alpha: float = 2.5
     sigma: float = 2
-    offset_magnitude: float = 0.1
+    offset_magnitude: float = 0.25
+    beta: float = 1.25e2  # control gain for velocity input
 
     @staticmethod
     def coordinates_offset(
@@ -289,6 +290,50 @@ class TorusQAN(QAN):
         theta[:, dim] = np.mod(theta[:, dim], 2 * np.pi)
         return theta
 
+    def make_trajectory(self, n_steps: int = 1000) -> np.ndarray:
+        """Creates a trajectory that wraps around the torus multiple times.
+        The trajectory follows a line with slope 2/3, creating an interesting pattern.
+        """
+        trajectory = np.zeros((n_steps, self.manifold.dim))
+
+        # Create time parameter that goes around multiple times
+        t = np.linspace(0.25, 6 * np.pi - 0.25, n_steps)  # 3 full rotations
+
+        # First coordinate goes around major circle
+        trajectory[:, 0] = np.mod(t, 2 * np.pi)
+        # Second coordinate goes around minor circle at different rate
+        trajectory[:, 1] = np.mod(2 / 3 * t, 2 * np.pi)
+
+        return trajectory
+
+    def compute_theta_dot(
+        self, theta: np.ndarray, theta_prev: np.ndarray
+    ) -> np.ndarray:
+        """Compute angular velocities accounting for periodic boundary conditions."""
+        delta_theta = theta - theta_prev
+
+        # Handle periodic boundary crossings for both angles
+        for dim in range(2):
+            if delta_theta[dim] > np.pi:
+                delta_theta[dim] -= 2 * np.pi
+            elif delta_theta[dim] < -np.pi:
+                delta_theta[dim] += 2 * np.pi
+
+        return delta_theta
+
+    def compute_can_input(self, i: int, theta_dot: np.ndarray) -> np.ndarray:
+        """Compute input for each CAN based on angular velocities.
+
+        Args:
+            i: CAN index (0-3, two CANs per dimension)
+            theta_dot: Angular velocities [dθ₁/dt, dθ₂/dt]
+        """
+        # Determine which dimension this CAN handles
+        dim = i // 2
+        # If even index, use positive direction, if odd use negative
+        sign = 1 if i % 2 == 0 else -1
+        return sign * self.beta * theta_dot[dim]
+
 
 # ----------------------------------- Cylinder ---------------------------------- #
 @dataclass
@@ -297,7 +342,8 @@ class CylinderQAN(QAN):
     spacing: float = 0.1
     alpha: float = 2
     sigma: float = 1
-    offset_magnitude: float = 0.1
+    offset_magnitude: float = 0.2
+    beta: float = 1.4e2  # control gain for velocity input
 
     @staticmethod
     def coordinates_offset(
@@ -309,6 +355,62 @@ class CylinderQAN(QAN):
             # wrap to [0, 2pi]
             theta[:, dim] = np.mod(theta[:, dim], 2 * np.pi)
         return theta
+
+    def make_trajectory(self, n_steps: int = 1000) -> np.ndarray:
+        """Creates a spiral trajectory that wraps around the cylinder multiple times."""
+        trajectory = np.zeros((n_steps, self.manifold.dim))
+
+        # Get parameter space bounds for height (z) with padding
+        padding = 0.2
+        z_min = self.manifold.parameter_space.ranges[0].start + padding
+        z_max = self.manifold.parameter_space.ranges[0].end - padding
+
+        # Create time parameter
+        t = np.linspace(
+            np.pi / 2, 4 * np.pi - 0.25, n_steps
+        )  # 2 full rotations
+
+        # Height varies linearly up and down
+        z = np.concatenate(
+            [
+                np.linspace(z_min, z_max, n_steps // 2),  # Up
+                np.linspace(z_max, z_min, n_steps // 2),  # Down
+            ]
+        )
+
+        # First coordinate is height
+        trajectory[:, 0] = z
+        # Second coordinate is angle that wraps around
+        trajectory[:, 1] = np.mod(t, 2 * np.pi)
+
+        return trajectory
+
+    def compute_theta_dot(
+        self, theta: np.ndarray, theta_prev: np.ndarray
+    ) -> np.ndarray:
+        """Compute velocities accounting for periodic boundary in angular dimension."""
+        delta_theta = theta - theta_prev
+
+        # Handle periodic boundary crossing for angular dimension
+        if delta_theta[1] > np.pi:
+            delta_theta[1] -= 2 * np.pi
+        elif delta_theta[1] < -np.pi:
+            delta_theta[1] += 2 * np.pi
+
+        return delta_theta
+
+    def compute_can_input(self, i: int, theta_dot: np.ndarray) -> np.ndarray:
+        """Compute input for each CAN based on velocities.
+
+        Args:
+            i: CAN index (0-3, two CANs per dimension)
+            theta_dot: Velocities [dz/dt, dθ/dt]
+        """
+        # Determine which dimension this CAN handles
+        dim = i // 2
+        # If even index, use positive direction, if odd use negative
+        sign = 1 if i % 2 == 0 else -1
+        return sign * self.beta * theta_dot[dim]
 
 
 # -------------------------------- Mobius band ------------------------------- #

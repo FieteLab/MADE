@@ -152,6 +152,7 @@ class CAN:
         self,
         mode: Literal["random", "uniform", "point"] = "random",
         point: np.ndarray = None,
+        radius: float = 0.1,
     ):
         N = self.connectivity_matrix.shape[0]
         if mode == "random":
@@ -170,7 +171,7 @@ class CAN:
 
             # Calculate distances from the point to all neurons
             distances = self.manifold.metric(self.neurons_coordinates, point)
-            radius = np.max(distances) * 0.1
+            radius = np.max(distances) * radius
 
             # Set states based on distances
             self.S = np.zeros((N, 1))
