@@ -1,3 +1,10 @@
+"""Module for defining various manifold types and their parameter spaces.
+
+This module provides classes for different types of manifolds (Line, Ring, Plane, etc.)
+and their associated parameter spaces. Each manifold has a specific dimensionality,
+parameter space, and metric for computing distances.
+"""
+
 from dataclasses import dataclass
 import matplotlib.pyplot as plt
 import numpy as np
@@ -14,22 +21,63 @@ from made.metrics import (
 # ----------------------------------- range ---------------------------------- #
 @dataclass
 class Range:
+    """Represents a range of values with optional periodicity.
+
+    Attributes:
+        start (float): Start value of the range
+        end (float): End value of the range
+        periodic (bool): Whether the range wraps around (default: False)
+    """
+
     start: float
     end: float
     periodic: bool = False
 
     def sample(self, n: int, pad: float = 0.0) -> np.ndarray:
+        """Sample n points uniformly from the range.
+        If the range is periodic, we skip the end point to avoid duplicates.
+
+        Args:
+            n (int): Number of points to sample
+            pad (float): Padding from range boundaries (default: 0.0)
+
+        Returns:
+            np.ndarray: Array of n sampled points
+        """
         return np.linspace(
             self.start + pad, self.end - pad, n, endpoint=not self.periodic
         )
 
     def rel2coord(self, rel: float) -> float:
+        """Convert a relative position [0,1] to coordinates in [start, end].
+
+        Args:
+            rel (float): Relative position in [0,1]
+
+        Returns:
+            float: Absolute coordinate in the range
+        """
         return self.start + rel * (self.end - self.start)
 
 
 # --------------------------------- parameter space --------------------------------- #
 @dataclass
 class ParameterSpace:
+    """Defines a parameter space composed of multiple ranges, one for each dimension.
+    Parameter spaces effectively represent the "neural lattice" of a CAN at the limit
+    of infinite neurons. The sampled points are the lattice points for a CAN with
+    finite neurons.
+
+    This class handles sampling points from multi-dimensional parameter spaces,
+    supporting both uniform grid sampling and fixed-spacing sampling.
+    Spacing by density ensures that a similar density of points is sampled
+    across each dimensions, regardless of the range size.
+
+    Attributes:
+        ranges (list[Range]): List of Range objects defining each dimension
+        dim (int): Number of dimensions in the parameter space
+    """
+
     ranges: list[Range]
 
     def __post_init__(self):
@@ -40,6 +88,14 @@ class ParameterSpace:
         Returns points sampled from the parameter space.
         For 1D: returns n points as an (n, 1) array
         For 2D: returns n^2 points as an (n^2, 2) array in grid format
+        For higher dimensions we return dn points as an (dn, d) array
+
+        Args:
+            n (int): Number of points to sample
+            pads (list[float]): Padding from range boundaries (default: 0.0)
+
+        Returns:
+            np.ndarray: Array of sampled points
         """
         if pads is None:
             pads = [0.0] * self.dim
@@ -69,6 +125,14 @@ class ParameterSpace:
         Returns points sampled from the parameter space with a fixed spacing.
         For 1D: returns array of shape (n, 1) where n depends on the range size and spacing
         For 2D: returns array of shape (n*m, 2) where n,m depend on the range sizes and spacing
+        For higher dimensions we return dn points as an (dn, d) array
+
+        Args:
+            spacing (float): Fixed spacing between points
+            pads (list[float]): Padding from range boundaries (default: 0.0)
+
+        Returns:
+            np.ndarray: Array of sampled points
         """
         if pads is None:
             pads = [0.0] * self.dim
@@ -98,6 +162,11 @@ class ParameterSpace:
             raise NotImplementedError("Only 1D and 2D manifolds are supported")
 
     def visualize(self, ax: plt.Axes):
+        """Visualize the parameter space on a matplotlib axes.
+
+        Args:
+            ax (plt.Axes): Matplotlib axes for plotting
+        """
         # if 1D, plot a line
         if self.dim == 1:
             ax.plot([self.ranges[0].start, self.ranges[0].end], [0, 0], "k-")
@@ -120,8 +189,22 @@ class ParameterSpace:
 
 
 class SphereParameterSpace(ParameterSpace):
+    """Special parameter space for sampling points on a unit sphere.
+
+    Uses the Fibonacci sphere method to generate approximately evenly
+    distributed points on a unit sphere surface.
+    """
+
     def sample(self, n: int, **kwargs) -> np.ndarray:
-        """Returns n approximately evenly distributed points on a unit sphere using fibonacci sphere method"""
+        """Returns approximately evenly distributed points on a unit sphere.
+
+        Args:
+            n (int): Number of points to sample
+            **kwargs: Additional arguments (unused)
+
+        Returns:
+            np.ndarray: Array of shape (n, 3) containing 3D coordinates on unit sphere
+        """
         points = np.zeros((n, 3))
         phi = np.pi * (3 - np.sqrt(5))  # golden angle in radians
 
@@ -141,18 +224,40 @@ class SphereParameterSpace(ParameterSpace):
     def sample_with_spacing(
         self, spacing: float, pads: list[float] = None
     ) -> np.ndarray:
-        """For sphere, we ignore spacing and just return 1000 evenly distributed points"""
+        """For sphere, we ignore spacing and just return evenly distributed points"""
         return self.sample(1250)
 
 
 # ---------------------------------------------------------------------------- #
-#                                   MANIFOLDS                                  #
+#                                   MANIFOLDS                                    #
 # ---------------------------------------------------------------------------- #
 class AbstractManifold:
+    """Base class for all manifolds.
+
+    Provides common functionality for visualization and point containment checking.
+    All specific manifold types should inherit from this class.
+    """
+
     def visualize(self, ax: plt.Axes):
+        """Visualize the manifold on a matplotlib axes.
+
+        Args:
+            ax (plt.Axes): Matplotlib axes for plotting
+        """
         self.parameter_space.visualize(ax)
 
     def contains(self, point: np.ndarray) -> bool:
+        """Check if a point lies within the manifold's parameter space.
+
+        Args:
+            point (np.ndarray): Point coordinates to check
+
+        Returns:
+            bool: True if point is contained in the manifold, False otherwise
+
+        Raises:
+            AssertionError: If point dimensionality doesn't match manifold
+        """
         assert len(point) == self.dim, "Incorrect number of dimensions"
         for i, r in enumerate(self.parameter_space.ranges):
             if not r.start <= point[i] <= r.end:
@@ -163,6 +268,11 @@ class AbstractManifold:
 # ----------------------------------- line ---------------------------------- #
 @dataclass
 class Line(AbstractManifold):
+    """1D manifold representing a line segment.
+
+    A simple 1D manifold with Euclidean metric.
+    """
+
     dim: int = 1
     parameter_space: ParameterSpace = ParameterSpace(
         [Range(0, 10, periodic=False)]
@@ -173,6 +283,11 @@ class Line(AbstractManifold):
 # ----------------------------------- ring ---------------------------------- #
 @dataclass
 class Ring(AbstractManifold):
+    """1D manifold representing a circular ring.
+
+    A periodic 1D manifold with periodic Euclidean metric.
+    """
+
     dim: int = 1
     parameter_space: ParameterSpace = ParameterSpace(
         [Range(0, 2 * np.pi, periodic=True)]
@@ -183,6 +298,11 @@ class Ring(AbstractManifold):
 # ----------------------------------- plane ---------------------------------- #
 @dataclass
 class Plane(AbstractManifold):
+    """2D manifold representing a rectangular region of a plane.
+
+    A simple 2D manifold with Euclidean metric.
+    """
+
     dim: int = 2
     parameter_space: ParameterSpace = ParameterSpace(
         [Range(0, 2.5, periodic=False), Range(0, 2.5, periodic=False)]
@@ -193,6 +313,11 @@ class Plane(AbstractManifold):
 # --------------------------------- cylinder --------------------------------- #
 @dataclass
 class Cylinder(AbstractManifold):
+    """2D manifold representing a cylinder surface.
+
+    One dimension is periodic (angular) and one is non-periodic (height).
+    """
+
     dim: int = 2
     parameter_space: ParameterSpace = ParameterSpace(
         [Range(0, 3, periodic=False), Range(0, 2 * np.pi, periodic=True)]
@@ -203,6 +328,11 @@ class Cylinder(AbstractManifold):
 # ----------------------------------- torus ---------------------------------- #
 @dataclass
 class Torus(AbstractManifold):
+    """2D manifold representing a torus surface.
+
+    Both dimensions are periodic, representing the two angular coordinates.
+    """
+
     dim: int = 2
     parameter_space: ParameterSpace = ParameterSpace(
         [
@@ -216,6 +346,12 @@ class Torus(AbstractManifold):
 # --------------------------------- mobius band --------------------------------- #
 @dataclass
 class MobiusBand(AbstractManifold):
+    """2D manifold representing a Möbius band.
+
+    One dimension is non-periodic (width) and one is periodic (length) with a twist.
+    Uses a special Möbius metric to handle the topological twist.
+    """
+
     dim: int = 2
     parameter_space: ParameterSpace = ParameterSpace(
         [Range(-2, 2, periodic=False), Range(0, 2 * np.pi, periodic=True)]
@@ -226,9 +362,9 @@ class MobiusBand(AbstractManifold):
 # ---------------------------------- sphere ---------------------------------- #
 @dataclass
 class Sphere(AbstractManifold):
-    """
-    Although the sphere is a 2D manifold, we consider the unit sphere embeded in 3D space
-    here, and thus have 3D coordinates.
+    """2D Sphere manifold represented as a unit sphere embedded in 3D space.
+
+    Although topologically 2D, points are represented in 3D coordinates.
     """
 
     dim: int = 3
@@ -242,6 +378,7 @@ class Sphere(AbstractManifold):
     metric: Metric = SphericalDistance(dim)
 
 
+# Dictionary of padding values for different manifold types
 PADS = dict(
     Plane=[0.2, 0.2],
     Torus=[0, 0],

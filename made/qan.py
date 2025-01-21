@@ -12,7 +12,16 @@ from made.can import CAN
 
 
 class QAN:
+    """A Quasi-Attractor Network (QAN) implementation that uses multiple Continuous Attractor Networks (CANs)
+    to track movement on manifolds.
+
+    The QAN uses pairs of offset CANs for each dimension of the manifold. Each pair consists of
+    two CANs with coordinates offset in opposite directions along a particular dimension.
+    This allows the network to detect and represent movement along that dimension.
+    """
+
     def __post_init__(self):
+        """Initialize the QAN by creating pairs of offset CANs for each dimension."""
         self.offset_magnitude = self.offset_magnitude
 
         # create copies of the CAN with offset coordinates
@@ -33,6 +42,16 @@ class QAN:
                 )
 
     def simulate(self, trajectory: np.ndarray) -> np.ndarray:
+        """Simulate the QAN's response to a given trajectory.
+
+        Args:
+            trajectory: An array of shape (n_steps, manifold_dim) containing the target trajectory
+                      points on the manifold.
+
+        Returns:
+            An array of shape (n_steps, manifold_dim) containing the decoded trajectory from
+            the network's activity.
+        """
         dT = 1 / 10
 
         # 1. reset each CAN to the start of the trajectory
@@ -97,21 +116,45 @@ class QAN:
 # ----------------------------------- Line ----------------------------------- #
 @dataclass
 class LineQAN(QAN):
+    """QAN implementation for a 1D line manifold.
+
+    The network uses two offset CANs to track movement along the line.
+    """
+
     manifold: AbstractManifold = manifolds.Line()
-    spacing: float = 0.075
-    alpha: float = 3
-    sigma: float = 1
-    offset_magnitude: float = 0.2
-    beta: float = 1e2
+    spacing: float = 0.075  # Spacing between neurons
+    alpha: float = 3  # Sharpness of neural tuning curves
+    sigma: float = 1  # Width of neural tuning curves
+    offset_magnitude: float = 0.2  # Magnitude of CAN coordinate offsets
+    beta: float = 1e2  # Gain for velocity inputs
 
     @staticmethod
     def coordinates_offset(
         theta: np.ndarray, dim: int, direction: int, offset_magnitude: float
     ) -> np.ndarray:
+        """Apply offset to coordinates on the line.
+
+        Args:
+            theta: Points on line [x]
+            dim: Dimension to offset (always 0 for line)
+            direction: Direction of offset (+1/-1)
+            offset_magnitude: Size of offset
+
+        Returns:
+            Offset coordinates
+        """
         theta[:, dim] += direction * offset_magnitude
         return theta
 
     def make_trajectory(self, n_steps: int = 1000) -> np.ndarray:
+        """Create a trajectory that moves back and forth along the line.
+
+        Args:
+            n_steps: Number of timesteps in the trajectory
+
+        Returns:
+            Array of shape (n_steps, 1) containing points on the line
+        """
         # make a trajectory that moves up and down the line multiple times
         trajectory = np.zeros((n_steps, self.manifold.dim))
 
@@ -137,11 +180,30 @@ class LineQAN(QAN):
     def compute_theta_dot(
         self, theta: np.ndarray, theta_prev: np.ndarray
     ) -> np.ndarray:
+        """Compute velocity as difference between current and previous position.
+
+        Args:
+            theta: Current position [x]
+            theta_prev: Previous position [x]
+
+        Returns:
+            Velocity [dx/dt]
+        """
         return theta - theta_prev
 
     def compute_can_input(
         self, i: int, theta_dot: np.ndarray, theta: np.ndarray
     ) -> np.ndarray:
+        """Compute input for each CAN based on velocity.
+
+        Args:
+            i: CAN index (0-1)
+            theta_dot: Velocity [dx/dt]
+            theta: Current position [x]
+
+        Returns:
+            Input to the CAN
+        """
         if i == 1:
             theta_dot = -theta_dot
         return self.beta * theta_dot
@@ -150,6 +212,12 @@ class LineQAN(QAN):
 # ----------------------------------- Ring ----------------------------------- #
 @dataclass
 class RingQAN(QAN):
+    """QAN implementation for a ring manifold (S¹).
+
+    The network uses two offset CANs to track movement around the ring.
+    Handles periodic boundary conditions at 0 and 2π.
+    """
+
     manifold: AbstractManifold = manifolds.Ring()
     spacing: float = 0.075
     alpha: float = 3
@@ -161,11 +229,30 @@ class RingQAN(QAN):
     def coordinates_offset(
         theta: np.ndarray, dim: int, direction: int, offset_magnitude: float
     ) -> np.ndarray:
+        """Apply offset to coordinates on the ring, wrapping around at 2π.
+
+        Args:
+            theta: Points on ring [θ]
+            dim: Dimension to offset (always 0 for ring)
+            direction: Direction of offset (+1/-1)
+            offset_magnitude: Size of offset
+
+        Returns:
+            Offset coordinates wrapped to [0, 2π]
+        """
         theta[:, dim] += direction * offset_magnitude
         theta[:, dim] = np.mod(theta[:, dim], 2 * np.pi)
         return theta
 
     def make_trajectory(self, n_steps: int = 1000) -> np.ndarray:
+        """Create a trajectory that goes around the ring multiple times.
+
+        Args:
+            n_steps: Number of timesteps in the trajectory
+
+        Returns:
+            Array of shape (n_steps, 1) containing angles on the ring [0, 2π]
+        """
         # make a trajectory that goes 0->2pi->0->2pi
         trajectory = np.zeros((n_steps, self.manifold.dim))
 
@@ -197,19 +284,38 @@ class RingQAN(QAN):
     def compute_theta_dot(
         self, theta: np.ndarray, theta_prev: np.ndarray
     ) -> np.ndarray:
+        """Compute angular velocity accounting for periodic boundary conditions.
+
+        Args:
+            theta: Current angle [θ]
+            theta_prev: Previous angle [θ]
+
+        Returns:
+            Angular velocity [dθ/dt]
+        """
         delta_theta = theta - theta_prev
 
+        # Handle periodic boundary crossings for both angles
         if delta_theta > np.pi:
-            if theta < theta_prev:
-                theta += 2 * np.pi
-            else:
-                theta -= 2 * np.pi
-            delta_theta = theta - theta_prev
+            delta_theta -= 2 * np.pi
+        elif delta_theta < -np.pi:
+            delta_theta += 2 * np.pi
+
         return delta_theta
 
     def compute_can_input(
         self, i: int, theta_dot: np.ndarray, theta: np.ndarray
     ) -> np.ndarray:
+        """Compute input for each CAN based on angular velocity.
+
+        Args:
+            i: CAN index (0-1)
+            theta_dot: Angular velocity [dθ/dt]
+            theta: Current angle [θ]
+
+        Returns:
+            Input to the CAN
+        """
         if i == 1:
             theta_dot = -theta_dot
         return self.beta * theta_dot
@@ -218,6 +324,12 @@ class RingQAN(QAN):
 # ----------------------------------- Plane ---------------------------------- #
 @dataclass
 class PlaneQAN(QAN):
+    """QAN implementation for a 2D plane manifold (R²).
+
+    The network uses two pairs of offset CANs (4 total) to track movement in both
+    x and y directions independently.
+    """
+
     manifold: AbstractManifold = manifolds.Plane()
     spacing: float = 0.065
     alpha: float = 3
@@ -229,11 +341,29 @@ class PlaneQAN(QAN):
     def coordinates_offset(
         theta: np.ndarray, dim: int, direction: int, offset_magnitude: float
     ) -> np.ndarray:
+        """Apply offset to coordinates on the plane.
+
+        Args:
+            theta: Points on plane [x, y]
+            dim: Dimension to offset (0=x, 1=y)
+            direction: Direction of offset (+1/-1)
+            offset_magnitude: Size of offset
+
+        Returns:
+            Offset coordinates
+        """
         theta[:, dim] += direction * offset_magnitude
         return theta
 
     def make_trajectory(self, n_steps: int = 1000) -> np.ndarray:
-        """Creates a space-filling trajectory over the plane using a modified Lissajous curve."""
+        """Create a space-filling trajectory over the plane using a modified Lissajous curve.
+
+        Args:
+            n_steps: Number of timesteps in the trajectory
+
+        Returns:
+            Array of shape (n_steps, 2) containing points on the plane
+        """
         trajectory = np.zeros((n_steps, self.manifold.dim))
 
         # Get parameter space bounds with padding
@@ -261,12 +391,30 @@ class PlaneQAN(QAN):
     def compute_theta_dot(
         self, theta: np.ndarray, theta_prev: np.ndarray
     ) -> np.ndarray:
-        """Compute velocity as the difference between current and previous position."""
+        """Compute velocity as the difference between current and previous position.
+
+        Args:
+            theta: Current position [x, y]
+            theta_prev: Previous position [x, y]
+
+        Returns:
+            Velocity [dx/dt, dy/dt]
+        """
         return theta - theta_prev
 
     def compute_can_input(
         self, i: int, theta_dot: np.ndarray, theta: np.ndarray
     ) -> np.ndarray:
+        """Compute input for each CAN based on velocities.
+
+        Args:
+            i: CAN index (0-3)
+            theta_dot: Velocities [dx/dt, dy/dt]
+            theta: Current position [x, y]
+
+        Returns:
+            Input to the CAN
+        """
         # Determine which dimension this CAN handles
         dim = i // 2
         # If even index, use positive direction, if odd use negative
@@ -346,6 +494,12 @@ class TorusQAN(QAN):
 # ----------------------------------- Cylinder ---------------------------------- #
 @dataclass
 class CylinderQAN(QAN):
+    """QAN implementation for a cylinder manifold (R × S¹).
+
+    The network uses two pairs of offset CANs (4 total) to track movement along the height
+    and around the circumference. Handles periodic boundary conditions in the angular dimension.
+    """
+
     manifold: AbstractManifold = manifolds.Cylinder()
     spacing: float = 0.2
     alpha: float = 2
@@ -357,6 +511,17 @@ class CylinderQAN(QAN):
     def coordinates_offset(
         theta: np.ndarray, dim: int, direction: int, offset_magnitude: float
     ) -> np.ndarray:
+        """Apply offset to coordinates on the cylinder.
+
+        Args:
+            theta: Points on cylinder [z, θ]
+            dim: Dimension to offset (0=height, 1=angle)
+            direction: Direction of offset (+1/-1)
+            offset_magnitude: Size of offset
+
+        Returns:
+            Offset coordinates with angle wrapped to [0, 2π]
+        """
         theta[:, dim] += direction * offset_magnitude
 
         if dim == 1:
@@ -365,7 +530,14 @@ class CylinderQAN(QAN):
         return theta
 
     def make_trajectory(self, n_steps: int = 1000) -> np.ndarray:
-        """Creates a spiral trajectory that wraps around the cylinder multiple times."""
+        """Create a spiral trajectory that wraps around the cylinder multiple times.
+
+        Args:
+            n_steps: Number of timesteps in the trajectory
+
+        Returns:
+            Array of shape (n_steps, 2) containing points on the cylinder [z, θ]
+        """
         trajectory = np.zeros((n_steps, self.manifold.dim))
 
         # Get parameter space bounds for height (z) with padding
@@ -396,7 +568,15 @@ class CylinderQAN(QAN):
     def compute_theta_dot(
         self, theta: np.ndarray, theta_prev: np.ndarray
     ) -> np.ndarray:
-        """Compute velocities accounting for periodic boundary in angular dimension."""
+        """Compute velocities accounting for periodic boundary in angular dimension.
+
+        Args:
+            theta: Current position [z, θ]
+            theta_prev: Previous position [z, θ]
+
+        Returns:
+            Velocities [dz/dt, dθ/dt]
+        """
         delta_theta = theta - theta_prev
 
         # Handle periodic boundary crossing for angular dimension
@@ -410,12 +590,15 @@ class CylinderQAN(QAN):
     def compute_can_input(
         self, i: int, theta_dot: np.ndarray, theta: np.ndarray
     ) -> np.ndarray:
-        """Compute input for each CAN based on velocities and current position.
+        """Compute input for each CAN based on velocities.
 
         Args:
-            i: CAN index (0-3, two CANs per dimension)
+            i: CAN index (0-3)
             theta_dot: Velocities [dz/dt, dθ/dt]
-            theta: Current position on the manifold [z, θ]
+            theta: Current position [z, θ]
+
+        Returns:
+            Input to the CAN
         """
         # Determine which dimension this CAN handles
         dim = i // 2
@@ -427,6 +610,13 @@ class CylinderQAN(QAN):
 # -------------------------------- Mobius band ------------------------------- #
 @dataclass
 class MobiusBandQAN(QAN):
+    """QAN implementation for a Möbius band manifold.
+
+    The network uses two pairs of offset CANs (4 total) to track movement along the height
+    and around the band. Handles both periodic boundary conditions and the characteristic
+    height flip when completing a full rotation.
+    """
+
     manifold: AbstractManifold = manifolds.MobiusBand()
     spacing: float = 0.15
     alpha: float = 2
@@ -468,7 +658,14 @@ class MobiusBandQAN(QAN):
         return theta
 
     def make_trajectory(self, n_steps: int = 1000) -> np.ndarray:
-        """Creates a trajectory that demonstrates the Mobius band's characteristic flip."""
+        """Create a trajectory that demonstrates the Mobius band's characteristic flip.
+
+        Args:
+            n_steps: Number of timesteps in the trajectory
+
+        Returns:
+            Array of shape (n_steps, 2) containing points on the Mobius band [height, angle]
+        """
         trajectory = np.zeros((n_steps, self.manifold.dim))
 
         # Get parameter space bounds for height with padding
@@ -489,7 +686,15 @@ class MobiusBandQAN(QAN):
     def compute_theta_dot(
         self, theta: np.ndarray, theta_prev: np.ndarray
     ) -> np.ndarray:
-        """Compute velocities accounting for periodic boundary in angular dimension."""
+        """Compute velocities accounting for periodic boundary and height flip.
+
+        Args:
+            theta: Current position [height, angle]
+            theta_prev: Previous position [height, angle]
+
+        Returns:
+            Velocities [dh/dt, dθ/dt]
+        """
         delta_theta = theta - theta_prev
 
         # Handle periodic boundary crossing for angular dimension
@@ -505,7 +710,16 @@ class MobiusBandQAN(QAN):
     def compute_can_input(
         self, i: int, theta_dot: np.ndarray, theta: np.ndarray
     ) -> np.ndarray:
-        """Compute input for each CAN based on velocities and current position."""
+        """Compute input for each CAN based on velocities.
+
+        Args:
+            i: CAN index (0-3)
+            theta_dot: Velocities [dh/dt, dθ/dt]
+            theta: Current position [height, angle]
+
+        Returns:
+            Input to the CAN
+        """
         # Determine which dimension this CAN handles
         dim = i // 2
         # If even index, use positive direction, if odd use negative
@@ -516,6 +730,13 @@ class MobiusBandQAN(QAN):
 # ---------------------------------- Sphere ---------------------------------- #
 @dataclass
 class SphereQAN(QAN):
+    """QAN implementation for a sphere manifold (S²).
+
+    The network uses three pairs of offset CANs (6 total) to track rotational movement
+    around the X, Y, and Z axes using Killing vector fields. Movement is represented
+    in the tangent space of the sphere.
+    """
+
     manifold: AbstractManifold = manifolds.Sphere()
     spacing: float = 0.075
     alpha: float = 2.5
@@ -564,7 +785,14 @@ class SphereQAN(QAN):
         return theta
 
     def make_trajectory(self, n_steps: int = 1000) -> np.ndarray:
-        """Creates a spiral trajectory from south pole to north pole on the sphere."""
+        """Create a spiral trajectory from south pole to north pole on the sphere.
+
+        Args:
+            n_steps: Number of timesteps in the trajectory
+
+        Returns:
+            Array of shape (n_steps, 3) containing points on the unit sphere [x, y, z]
+        """
         trajectory = np.zeros((n_steps, self.manifold.dim))
 
         # Create parameters for spiral
@@ -589,8 +817,12 @@ class SphereQAN(QAN):
     ) -> np.ndarray:
         """Compute velocity vector in R³ tangent to the sphere.
 
-        The velocity must be tangent to the sphere at theta.
-        We project the raw difference vector onto the tangent space.
+        Args:
+            theta: Current position [x, y, z]
+            theta_prev: Previous position [x, y, z]
+
+        Returns:
+            Velocity vector tangent to the sphere at theta
         """
         # Get raw difference
         delta = theta - theta_prev
@@ -605,12 +837,15 @@ class SphereQAN(QAN):
     def compute_can_input(
         self, i: int, theta_dot: np.ndarray, theta: np.ndarray
     ) -> np.ndarray:
-        """Compute input for each CAN based on velocities and current position using Killing fields.
+        """Compute input for each CAN based on velocities using Killing fields.
 
         Args:
-            i: CAN index (0-5, two CANs per dimension)
-            theta_dot: Velocities in R³ tangent to the sphere
-            theta: Current position on the sphere [x, y, z]
+            i: CAN index (0-5)
+            theta_dot: Velocity vector tangent to sphere at theta
+            theta: Current position [x, y, z]
+
+        Returns:
+            Input to the CAN based on projection onto appropriate Killing field
         """
         # Determine which dimension this CAN handles (0=X, 1=Y, 2=Z)
         dim = i // 2

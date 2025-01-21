@@ -1,37 +1,79 @@
+"""Module for defining distance metrics on various manifolds.
+
+This module provides different distance metrics used to compute distances between points
+on various manifolds. Each metric is tailored to the specific topology of its manifold,
+handling properties like periodicity (Ring, Torus) or special geometries (Möbius band, Sphere).
+"""
+
 import numpy as np
 
 
 class Metric:
+    """Base class for all distance metrics.
+
+    This abstract class defines the interface that all metrics must implement.
+    Each metric must provide methods to compute distances between individual points
+    and pairwise distances between sets of points.
+    """
+
     def __call__(self, x: np.ndarray, y: np.ndarray) -> float:
+        """Compute distance between points x and y.
+
+        Args:
+            x (np.ndarray): First point(s) with shape (n, dim) or (dim,)
+            y (np.ndarray): Second point(s) with shape (n, dim) or (dim,)
+
+        Returns:
+            float: Distance between x and y
         """
-        Computes the distance between points x and y.
-        x, y can be of shape (n, dim) or (dim,)
-        """
-        pass
+        raise NotImplementedError("Distance metric not implemented")
 
     def pairwise_distances(
         self, X: np.ndarray, weights_offset=lambda x: x
     ) -> np.ndarray:
+        """Compute pairwise distances between all points in X.
+
+        Args:
+            X (np.ndarray): Points array of shape (n_points, dim)
+            weights_offset (callable): Function to transform coordinates before computing distances,
+                used in QANs to create asymmetric weights
+
+        Returns:
+            np.ndarray: Matrix of shape (n_points, n_points) with pairwise distances[i,j] = dist(x_i, f(x_j))
         """
-        Compute pairwise distances between all points in X.
-        X: array of shape (n_points, dim)
-        weights_offset: function to transform coordinates before computing distances
-        Returns: array of shape (n_points, n_points) with pairwise distances[i,j] = dist(x_i, f(x_j))
-        """
-        pass
+        raise NotImplementedError("Pairwise distances not implemented")
 
 
 # ---------------------------------------------------------------------------- #
-#                               Euclidean                                    #
+#                               Euclidean                                        #
 # ---------------------------------------------------------------------------- #
 class Euclidean(Metric):
+    """Standard Euclidean distance metric.
+
+    Computes straight-line distances between points in Euclidean space.
+    Used for manifolds like Line and Plane.
+
+    Attributes:
+        dim (int): Dimensionality of the space
+    """
+
     def __init__(self, dim: int):
+        """Initialize Euclidean metric.
+
+        Args:
+            dim (int): Number of dimensions
+        """
         self.dim = dim
 
     def __call__(self, x: np.ndarray, y: np.ndarray) -> float:
-        """
-        Computes the Euclidean distance between points.
-        X,Y can be of shape (n, dim) or (dim,).
+        """Compute Euclidean distance between points.
+
+        Args:
+            x (np.ndarray): First point(s) with shape (n, dim) or (dim,)
+            y (np.ndarray): Second point(s) with shape (n, dim) or (dim,)
+
+        Returns:
+            float: Euclidean distance(s) between x and y
         """
         # ensure shapes consistency
         if len(x.shape) == 1:
@@ -44,13 +86,16 @@ class Euclidean(Metric):
     def pairwise_distances(
         self, X: np.ndarray, weights_offset=lambda x: x
     ) -> np.ndarray:
-        """
-        Compute pairwise Euclidean distances between all points.
+        """Compute pairwise Euclidean distances between all points.
         Uses a vectorized approach that avoids explicit loops.
 
-        X: array of shape (n_points, dim)
-        weights_offset: function to transform coordinates before computing distances
-        Returns: array of shape (n_points, n_points) with pairwise distances[i,j] = dist(x_i, f(x_j))
+        Args:
+            X (np.ndarray): Points array of shape (n_points, dim)
+            weights_offset (callable): Function to transform coordinates before computing distances
+
+        Returns:
+            np.ndarray: Matrix of shape (n_points, n_points) with pairwise distances[i,j] = dist(x_i, f(x_j))
+            where f is the weights_offset function
         """
         # Apply weights offset to second set of points
         X_transformed = weights_offset(X.copy())
@@ -77,16 +122,28 @@ class Euclidean(Metric):
 
 
 # ---------------------------------------------------------------------------- #
-#                               PeriodicEuclidean                              #
+#                               PeriodicEuclidean                               #
 # ---------------------------------------------------------------------------- #
 class PeriodicEuclidean(Metric):
+    """Euclidean distance metric with periodic boundary conditions.
+
+    Used for manifolds with periodic dimensions like Ring, Cylinder, and Torus.
+    For periodic dimensions, computes the shortest distance around the circle.
+
+    Attributes:
+        dim (int): Number of dimensions
+        periodic (list[bool]): Which dimensions are periodic
+    """
+
     def __init__(self, dim: int, periodic: list[bool]):
-        """
-        Initialize PeriodicEuclidean metric.
+        """Initialize PeriodicEuclidean metric.
 
         Args:
-            dim: number of dimensions
-            periodic: list of booleans indicating which dimensions are periodic
+            dim (int): Number of dimensions
+            periodic (list[bool]): List indicating which dimensions are periodic
+
+        Raises:
+            ValueError: If periodic list length doesn't match dimension
         """
         if len(periodic) != dim:
             raise ValueError(
@@ -96,12 +153,17 @@ class PeriodicEuclidean(Metric):
         self.periodic = np.array(periodic)
 
     def __call__(self, x: np.ndarray, y: np.ndarray) -> float:
-        """
-        Computes the distance between points with periodic boundary conditions.
+        """Compute distance between points with periodic boundary conditions.
+
         For periodic dimensions, computes angular distance with period 2π.
         For non-periodic dimensions, uses regular Euclidean distance.
 
-        x, y can be of shape (n, dim) or (dim,)
+        Args:
+            x (np.ndarray): First point(s) with shape (n, dim) or (dim,)
+            y (np.ndarray): Second point(s) with shape (n, dim) or (dim,)
+
+        Returns:
+            float: Distance(s) between x and y respecting periodic boundaries
         """
         # ensure shapes consistency
         if len(x.shape) == 1:
@@ -127,12 +189,14 @@ class PeriodicEuclidean(Metric):
     def pairwise_distances(
         self, X: np.ndarray, weights_offset=lambda x: x
     ) -> np.ndarray:
-        """
-        Compute pairwise distances between all points, respecting periodic boundaries.
+        """Compute pairwise distances between all points, respecting periodic boundaries.
 
-        X: array of shape (n_points, dim)
-        weights_offset: function to transform coordinates before computing distances
-        Returns: array of shape (n_points, n_points) with pairwise distances[i,j] = dist(x_i, f(x_j))
+        Args:
+            X (np.ndarray): Points array of shape (n_points, dim)
+            weights_offset (callable): Function to transform coordinates before computing distances
+
+        Returns:
+            np.ndarray: Matrix of shape (n_points, n_points) with pairwise distances[i,j] = dist(x_i, f(x_j))
         """
         # Apply weights offset to second set of points
         X_transformed = weights_offset(X.copy())
@@ -150,31 +214,42 @@ class PeriodicEuclidean(Metric):
 #                               MobiusEuclidean                                  #
 # ---------------------------------------------------------------------------- #
 class MobiusEuclidean(Metric):
-    def __init__(self, T: float = 2.0, threshold: float = np.pi):
-        """
-        Initialize MobiusEuclidean metric for a Möbius strip.
+    """Distance metric for points on a Möbius strip.
 
-        The metric assumes points are parametrized by:
-            - t ∈ [-T, T] (height)
-            - θ ∈ [0, 2π] (angle)
+    Handles the twist in the Möbius strip by flipping the height coordinate
+    when points are on opposite sides of the strip (large angular separation).
+
+    Attributes:
+        T (float): Height of the manifold in the non-periodic direction
+        threshold (float): Angular threshold to determine if points are on opposite sides
+    """
+
+    def __init__(self, T: float = 2.0, threshold: float = np.pi):
+        """Initialize MobiusEuclidean metric.
 
         Args:
-            T: height of the manifold in the non-periodic direction
-            threshold: angular threshold to determine if points are on the "same side"
+            T (float): Height of the manifold in the non-periodic direction
+            threshold (float): Angular threshold to determine if points are on opposite sides
         """
         self.T = T
         self.threshold = threshold
 
     def __call__(self, x: np.ndarray, y: np.ndarray) -> float:
-        """
-        Compute distance between points on a Möbius strip.
+        """Compute distance between points on a Möbius strip.
 
         For points with angular distance > threshold, one point's height
         is flipped before computing the distance to account for the
         strip's twist.
 
         Args:
-            x, y: points of shape (n, 2) or (2,) where each point is (t, θ)
+            x (np.ndarray): First point(s) with shape (n, 2) or (2,), each point is (height, angle)
+            y (np.ndarray): Second point(s) with shape (n, 2) or (2,), each point is (height, angle)
+
+        Returns:
+            float: Distance(s) between x and y on the Möbius strip
+
+        Raises:
+            AssertionError: If shape mismatch occurs during computation
         """
         # ensure shapes consistency
         if len(x.shape) == 1:
@@ -203,14 +278,14 @@ class MobiusEuclidean(Metric):
     def pairwise_distances(
         self, X: np.ndarray, weights_offset=lambda x: x
     ) -> np.ndarray:
-        """
-        Compute pairwise distances between all points on the Möbius strip.
+        """Compute pairwise distances between all points on the Möbius strip.
 
         Args:
-            X: array of shape (n_points, 2) where each point is (t, θ)
-            weights_offset: function to transform coordinates before computing distances
+            X (np.ndarray): Points array of shape (n_points, 2), each point is (height, angle)
+            weights_offset (callable): Function to transform coordinates before computing distances
+
         Returns:
-            array of shape (n_points, n_points) with pairwise distances[i,j] = dist(x_i, f(x_j))
+            np.ndarray: Matrix of shape (n_points, n_points) with pairwise distances[i,j] = dist(x_i, f(x_j))
         """
         # Apply weights offset to second set of points
         X_transformed = weights_offset(X.copy())
@@ -227,25 +302,36 @@ class MobiusEuclidean(Metric):
 #                               SphericalDistance                               #
 # ---------------------------------------------------------------------------- #
 class SphericalDistance(Metric):
+    """Great circle distance metric for points on a sphere.
+
+    Computes the shortest path distance between points along the surface
+    of a sphere using the great circle distance formula.
+
+    Attributes:
+        radius (float): Radius of the sphere
+        dim (int): Always 3 for points in 3D Cartesian coordinates
+    """
+
     def __init__(self, radius: float = 1.0):
-        """
-        Initialize SphericalDistance metric for points on a sphere using great circle distance.
+        """Initialize SphericalDistance metric.
 
         Args:
-            radius: radius of the sphere (default=1.0 for unit sphere)
+            radius (float): Radius of the sphere (default=1.0 for unit sphere)
         """
         self.radius = radius
         self.dim = 3  # x,y,z coordinates
 
     def __call__(self, x: np.ndarray, y: np.ndarray) -> float:
-        """
-        Compute the great circle distance between points on a sphere.
+        """Compute the great circle distance between points on a sphere.
+
         Uses the dot product formula: d = R * arccos(<x,y>/(|x||y|))
 
         Args:
-            x, y: points of shape (n, 3) or (3,) representing points in 3D Cartesian coordinates
+            x (np.ndarray): First point(s) with shape (n, 3) or (3,) in Cartesian coordinates
+            y (np.ndarray): Second point(s) with shape (n, 3) or (3,) in Cartesian coordinates
+
         Returns:
-            distances with same units as radius
+            float: Great circle distance(s) between x and y
         """
         # ensure shapes consistency
         if len(x.shape) == 1:
@@ -269,14 +355,14 @@ class SphericalDistance(Metric):
     def pairwise_distances(
         self, X: np.ndarray, weights_offset=lambda x: x
     ) -> np.ndarray:
-        """
-        Compute pairwise great circle distances between all points on the sphere.
+        """Compute pairwise great circle distances between all points on the sphere.
 
         Args:
-            X: array of shape (n_points, 3) representing points in 3D Cartesian coordinates
-            weights_offset: function to transform coordinates before computing distances
+            X (np.ndarray): Points array of shape (n_points, 3) in Cartesian coordinates
+            weights_offset (callable): Function to transform coordinates before computing distances
+
         Returns:
-            array of shape (n_points, n_points) with pairwise distances[i,j] = dist(x_i, f(x_j))
+            np.ndarray: Matrix of shape (n_points, n_points) with pairwise distances[i,j] = dist(x_i, f(x_j))
         """
         # Apply weights offset to second set of points
         X_transformed = weights_offset(X)

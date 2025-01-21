@@ -25,11 +25,13 @@ def main():
         samples = can.manifold.parameter_space.sample(
             N_SAMPLES[topology], pads=PADS[topology]
         )
+        if can.manifold.dim > 1:
+            samples = samples[::3, :]
 
         final_states = simulate_many_with_initial_states(can, samples, 25)
         logger.info(f"Simulated {final_states.shape[0]} samples")
 
-        isomap = Isomap(n_components=3, n_neighbors=11)
+        isomap = Isomap(n_components=3, n_neighbors=25)
         final_states_isomap = isomap.fit_transform(final_states)
 
         # save as numpy in ./imgs

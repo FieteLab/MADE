@@ -1,3 +1,11 @@
+"""Visualization utilities for manifolds, CANs, and QANs.
+
+This module provides functions to visualize:
+1. Manifold geometries and distances
+2. CAN connectivity and states
+3. QAN trajectories and states
+"""
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -16,6 +24,14 @@ def clean_axes(
     title: str = "",
     ylabel: str = "$\\theta_2$",
 ):
+    """Apply consistent styling to matplotlib axes.
+
+    Args:
+        ax: The matplotlib axes to style
+        aspect: Aspect ratio for the plot ('equal' or 'auto')
+        title: Plot title
+        ylabel: Label for y-axis (defaults to θ₂)
+    """
     ax.set_aspect(aspect)
     ax.set(xlabel="$\\theta_1$", ylabel=ylabel)
     # remove splines
@@ -30,7 +46,19 @@ def clean_axes(
 
 
 def _visualize_conn_sphere(ax, can, neuron_idx, cmap="bwr", vmin=-1, vmax=0):
-    """Helper function to visualize connectivity for a sphere manifold."""
+    """Helper function to visualize connectivity for a sphere manifold.
+
+    Args:
+        ax: The matplotlib 3D axes to plot on
+        can: The CAN instance
+        neuron_idx: Index of the neuron whose connectivity to visualize
+        cmap: Colormap for connectivity values
+        vmin: Minimum value for colormap scaling
+        vmax: Maximum value for colormap scaling
+
+    Returns:
+        The matplotlib axes with the plot
+    """
     # Get connectivity for this neuron
     neuron_connectivity = can.connectivity_matrix[neuron_idx]
 
@@ -64,7 +92,16 @@ def _visualize_conn_sphere(ax, can, neuron_idx, cmap="bwr", vmin=-1, vmax=0):
 
 
 def _visualize_conn_1d(ax, can, neuron_idx):
-    """Helper function to visualize connectivity for a 1D manifold."""
+    """Helper function to visualize connectivity for a 1D manifold.
+
+    Args:
+        ax: The matplotlib axes to plot on
+        can: The CAN instance
+        neuron_idx: Index of the neuron whose connectivity to visualize
+
+    Returns:
+        The matplotlib axes with the plot
+    """
     # Get connectivity for this neuron
     neuron_connectivity = can.connectivity_matrix[neuron_idx]
 
@@ -93,7 +130,19 @@ def _visualize_conn_1d(ax, can, neuron_idx):
 
 
 def _visualize_conn_2d(ax, can, neuron_idx, cmap="bwr", vmin=-1, vmax=0):
-    """Helper function to visualize connectivity for a 2D manifold."""
+    """Helper function to visualize connectivity for a 2D manifold.
+
+    Args:
+        ax: The matplotlib axes to plot on
+        can: The CAN instance
+        neuron_idx: Index of the neuron whose connectivity to visualize
+        cmap: Colormap for connectivity values
+        vmin: Minimum value for colormap scaling
+        vmax: Maximum value for colormap scaling
+
+    Returns:
+        The matplotlib axes with the plot
+    """
     # Calculate grid dimensions based on spacing
     nx = can.nx(0)
     ny = can.nx(1)
@@ -136,7 +185,19 @@ def _visualize_conn_2d(ax, can, neuron_idx, cmap="bwr", vmin=-1, vmax=0):
 def _visualize_conn_sphere_2d(
     ax, can, neuron_idx, cmap="bwr", vmin=-1, vmax=0
 ):
-    """Helper function to visualize connectivity for a sphere manifold using Mollweide projection."""
+    """Helper function to visualize connectivity for a sphere manifold using Mollweide projection.
+
+    Args:
+        ax: The matplotlib axes to plot on
+        can: The CAN instance
+        neuron_idx: Index of the neuron whose connectivity to visualize
+        cmap: Colormap for connectivity values
+        vmin: Minimum value for colormap scaling
+        vmax: Maximum value for colormap scaling
+
+    Returns:
+        The matplotlib axes with the plot
+    """
     # Get connectivity for this neuron
     neuron_connectivity = can.connectivity_matrix[neuron_idx]
 
@@ -221,6 +282,17 @@ def visualize_manifold(
     distance_point: np.ndarray = None,
     cmap="Greens",
 ):
+    """Visualize a manifold and optionally show distances from a reference point.
+
+    Args:
+        mfld: The manifold to visualize
+        show_distances: Whether to show distances from a reference point
+        distance_point: Reference point for distance calculations
+        cmap: Colormap for distance visualization
+
+    Returns:
+        fig, ax: The matplotlib figure and axes with the plot
+    """
     if mfld.dim == 1:
         f, ax = plt.subplots()
         mfld.visualize(ax)
@@ -307,10 +379,22 @@ def visualize_manifold(
 
 
 def visualize_can_connectivity(can: CAN, cmap="bwr", vmin=-1, vmax=0):
-    """
-    Select 4 random neurons and plot their connectivity
-    to the rest of the lattice using contour plots for 2D,
-    line plots for 1D, or Mollweide projection for sphere.
+    """Visualize the connectivity of randomly selected neurons in a CAN.
+
+    Selects 4 random neurons and plots their connectivity to the rest of the network.
+    The visualization method depends on the manifold type:
+    - 1D manifolds: Line plots
+    - 2D manifolds: Contour plots
+    - Sphere: Mollweide projection
+
+    Args:
+        can: The CAN instance to visualize
+        cmap: Colormap for connectivity values
+        vmin: Minimum value for colormap scaling
+        vmax: Maximum value for colormap scaling
+
+    Returns:
+        fig, axes: The matplotlib figure and axes with the plots
     """
     total_neurons = can.neurons_coordinates.shape[0]
     neurons_idx = np.random.choice(total_neurons, 4, replace=False)
@@ -319,11 +403,6 @@ def visualize_can_connectivity(can: CAN, cmap="bwr", vmin=-1, vmax=0):
         # Create a figure with both 3D and 2D projections
         f = plt.figure(figsize=(20, 10))
         for i, neuron_idx in enumerate(neurons_idx):
-            # # 3D visualization
-            # ax1 = f.add_subplot(3, 2, i + 1, projection='3d')
-            # _visualize_conn_sphere(ax1, can, neuron_idx, cmap, vmin, vmax)
-            # ax1.set_title(f"Neuron {neuron_idx} (3D)")
-
             # 2D Mollweide projection
             ax2 = f.add_subplot(2, 2, i + 5)
             _visualize_conn_sphere_2d(ax2, can, neuron_idx, cmap, vmin, vmax)
@@ -346,11 +425,18 @@ def visualize_can_connectivity(can: CAN, cmap="bwr", vmin=-1, vmax=0):
 
 
 def visualize_can_state(can: CAN):
-    """
-    Visualize the current state of the CAN using a scatter plot.
-    For 1D manifolds, plots along a line. For 2D manifolds, plots
-    in the plane with color indicating state value. For sphere,
-    plots in 3D with color indicating state value.
+    """Visualize the current state of neurons in a CAN.
+
+    The visualization method depends on the manifold type:
+    - 1D manifolds: Line plot with heights showing activation
+    - 2D manifolds: Scatter plot with colors showing activation
+    - Sphere: 3D scatter plot with colors showing activation
+
+    Args:
+        can: The CAN instance to visualize
+
+    Returns:
+        fig, ax: The matplotlib figure and axes with the plot
     """
     if isinstance(can.manifold, Sphere):
         f = plt.figure()
@@ -413,9 +499,20 @@ def visualize_can_state(can: CAN):
 
 
 def visualize_qan_connectivity(qan: QAN, cmap="bwr", vmin=-1, vmax=0):
-    """
-    Select 1 random neuron and visualize its connectivity in each CAN of the QAN.
-    Each CAN's connectivity is shown in a separate subplot.
+    """Visualize the connectivity in each CAN of a QAN.
+
+    Selects a random neuron and shows its connectivity in each component CAN.
+    The visualization method depends on the manifold type, similar to
+    visualize_can_connectivity.
+
+    Args:
+        qan: The QAN instance to visualize
+        cmap: Colormap for connectivity values
+        vmin: Minimum value for colormap scaling
+        vmax: Maximum value for colormap scaling
+
+    Returns:
+        fig, axes: The matplotlib figure and axes with the plots
     """
     # Select random neuron index
     total_neurons = qan.cans[0].neurons_coordinates.shape[0]
@@ -446,9 +543,16 @@ def visualize_qan_connectivity(qan: QAN, cmap="bwr", vmin=-1, vmax=0):
 
 
 def remove_jump(x):
-    """
-    Find big deltas along any dimension and remove
-    the corresponding points from the array.
+    """Remove discontinuities in a trajectory by inserting NaN values.
+
+    Used to prevent drawing lines across periodic boundaries or
+    discontinuities when plotting trajectories.
+
+    Args:
+        x: Array of trajectory points
+
+    Returns:
+        Array with NaN values inserted at jump points
     """
     delta_x = np.diff(x, prepend=0, axis=0)
     jumps = np.where(delta_x > 0.5)[0]
@@ -462,14 +566,22 @@ def visualize_trajectory(
     traj2: np.ndarray = None,
     title: str = "Trajectory",
 ):
-    """
-    Visualize one or two trajectories on a manifold.
+    """Visualize one or two trajectories on a manifold.
+
+    Can be used to compare a target trajectory with a simulated one.
+    The visualization method depends on the manifold type:
+    - 1D manifolds: Plot coordinate vs time
+    - 2D manifolds: Plot in the plane
+    - Sphere: Plot on the surface in 3D
 
     Args:
         mfld: The manifold the trajectory lives on
         traj1: First trajectory as (n_steps, dim) array
         traj2: Optional second trajectory as (n_steps, dim) array
         title: Plot title
+
+    Returns:
+        fig, ax: The matplotlib figure and axes with the plot
     """
     if isinstance(mfld, Sphere):
         f = plt.figure()
@@ -485,7 +597,7 @@ def visualize_trajectory(
             traj1[:, 1],
             traj1[:, 2],
             "b-",
-            label="Trajectory 1",
+            label="Ground Truth",
             alpha=0.7,
         )
         ax.scatter(traj1[0, 0], traj1[0, 1], traj1[0, 2], c="b", s=25)
@@ -496,7 +608,7 @@ def visualize_trajectory(
                 traj2[:, 1],
                 traj2[:, 2],
                 "r--",
-                label="Trajectory 2",
+                label="Model",
                 alpha=0.7,
             )
             ax.scatter(traj2[0, 0], traj2[0, 1], traj2[0, 2], c="r", s=25)
@@ -534,7 +646,6 @@ def visualize_trajectory(
         )
         ax.scatter(traj1[2, 0], traj1[2, 1], c="b", s=25)
         if traj2 is not None:
-            # traj2 = remove_jump(traj2)
             ax.plot(
                 traj2[:, 0],
                 traj2[:, 1],
