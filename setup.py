@@ -6,12 +6,18 @@ here = pathlib.Path(__file__).parent.resolve()
 # Get the long description from the README file
 long_description = (here / "README.md").read_text(encoding="utf-8")
 
-req_path = here / "requirements.txt"
-with open(req_path) as f:
-    requirements = f.read().splitlines()
+requirements = [
+    "numpy",
+    "matplotlib",
+    "scikit-learn",
+    "loguru",
+    "pre-commit",
+    "black",
+    "flake8",
+]
 
 setup(
-    name="made",  # Required
+    name="ManifoldAttractors",  # Required
     version="0.0.1",  # Required
     description="Manifold Activity Direct Embedding (MADE) - A toolkit for engineering Continuous Attractor Networks.",  # Optional
     long_description=long_description,  # Optional
@@ -23,7 +29,14 @@ setup(
     python_requires=">=3.8, <4",
     install_requires=requirements,
     dependency_links=[""],
-    extras_require={},
+    extras_require={
+        "dev": [
+            "pytest>=6.0",
+            "pytest-cov>=2.0",
+            "black>=21.0",
+            "flake8>=3.9.0",
+        ],
+    },
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Science/Research",
