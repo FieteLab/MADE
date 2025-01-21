@@ -174,12 +174,12 @@ class SphereQAN(QAN):
             theta[:, z] += offset * theta[:, y]  # y
         elif dim == 1:
             # Rotation around Y axis: [z, 0, -x]
-            theta[:, x] += -offset * theta[:, z]  # -x
-            theta[:, z] += offset * theta[:, x]  # z
+            theta[:, x] += offset * theta[:, z]  # -x
+            theta[:, z] += -offset * theta[:, x]  # z
         else:
             # Rotation around Z axis: [-y, x, 0]
-            theta[:, y] += -offset * theta[:, x]  # -y
-            theta[:, x] += offset * theta[:, y]  # x
+            theta[:, x] += -offset * theta[:, y]  # x
+            theta[:, y] += offset * theta[:, x]  # -y
 
         # Normalize to keep points on the sphere
         norms = np.sqrt(np.sum(theta**2, axis=1))
