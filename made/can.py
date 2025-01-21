@@ -128,7 +128,7 @@ class CAN:
 
         elif topology.lower() == "mobiusband":
             manifold = MobiusBand()
-            return cls(manifold, spacing=0.1, alpha=2, sigma=2)
+            return cls(manifold, spacing=0.2, alpha=2, sigma=2)
 
         elif topology.lower() == "sphere":
             manifold = Sphere()
@@ -170,7 +170,7 @@ class CAN:
                 point = point.reshape(1, -1)
 
             # Calculate distances from the point to all neurons
-            distances = self.manifold.metric(self.neurons_coordinates, point)
+            distances = self.manifold.metric(point, self.neurons_coordinates)
             radius = np.max(distances) * radius
 
             # Set states based on distances

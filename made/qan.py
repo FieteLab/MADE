@@ -61,7 +61,7 @@ class QAN:
 
             # update each CAN using the total state
             for i, can in enumerate(self.cans):
-                can_input = self.compute_can_input(i, theta_dot)
+                can_input = self.compute_can_input(i, theta_dot, theta)
                 states[i] = can.step_stateless(S_tot, can_input)
 
             # decode the state into a trajectory
@@ -141,7 +141,9 @@ class LineQAN(QAN):
     ) -> np.ndarray:
         return theta - theta_prev
 
-    def compute_can_input(self, i: int, theta_dot: np.ndarray) -> np.ndarray:
+    def compute_can_input(
+        self, i: int, theta_dot: np.ndarray, theta: np.ndarray
+    ) -> np.ndarray:
         if i == 1:
             theta_dot = -theta_dot
         return self.beta * theta_dot
@@ -207,7 +209,9 @@ class RingQAN(QAN):
             delta_theta = theta - theta_prev
         return delta_theta
 
-    def compute_can_input(self, i: int, theta_dot: np.ndarray) -> np.ndarray:
+    def compute_can_input(
+        self, i: int, theta_dot: np.ndarray, theta: np.ndarray
+    ) -> np.ndarray:
         if i == 1:
             theta_dot = -theta_dot
         return self.beta * theta_dot
@@ -262,7 +266,9 @@ class PlaneQAN(QAN):
         """Compute velocity as the difference between current and previous position."""
         return theta - theta_prev
 
-    def compute_can_input(self, i: int, theta_dot: np.ndarray) -> np.ndarray:
+    def compute_can_input(
+        self, i: int, theta_dot: np.ndarray, theta: np.ndarray
+    ) -> np.ndarray:
         # Determine which dimension this CAN handles
         dim = i // 2
         # If even index, use positive direction, if odd use negative
@@ -321,17 +327,27 @@ class TorusQAN(QAN):
 
         return delta_theta
 
-    def compute_can_input(self, i: int, theta_dot: np.ndarray) -> np.ndarray:
-        """Compute input for each CAN based on angular velocities.
+    def compute_can_input(
+        self, i: int, theta_dot: np.ndarray, theta: np.ndarray
+    ) -> np.ndarray:
+        """Compute input for each CAN based on angular velocities and current position.
 
         Args:
             i: CAN index (0-3, two CANs per dimension)
             theta_dot: Angular velocities [dθ₁/dt, dθ₂/dt]
+            theta: Current position on the manifold [θ₁, θ₂]
         """
         # Determine which dimension this CAN handles
         dim = i // 2
         # If even index, use positive direction, if odd use negative
         sign = 1 if i % 2 == 0 else -1
+
+        # For θ₂, flip direction based on angle
+        if dim == 1:
+            # Flip the direction when crossing the twist
+            if theta[0] > np.pi:
+                sign = -sign
+
         return sign * self.beta * theta_dot[dim]
 
 
@@ -399,17 +415,27 @@ class CylinderQAN(QAN):
 
         return delta_theta
 
-    def compute_can_input(self, i: int, theta_dot: np.ndarray) -> np.ndarray:
-        """Compute input for each CAN based on velocities.
+    def compute_can_input(
+        self, i: int, theta_dot: np.ndarray, theta: np.ndarray
+    ) -> np.ndarray:
+        """Compute input for each CAN based on velocities and current position.
 
         Args:
             i: CAN index (0-3, two CANs per dimension)
             theta_dot: Velocities [dz/dt, dθ/dt]
+            theta: Current position on the manifold [z, θ]
         """
         # Determine which dimension this CAN handles
         dim = i // 2
         # If even index, use positive direction, if odd use negative
         sign = 1 if i % 2 == 0 else -1
+
+        # For z, flip direction based on angle
+        if dim == 0:
+            # Flip the height direction when crossing the twist
+            if theta[1] > np.pi:
+                sign = -sign
+
         return sign * self.beta * theta_dot[dim]
 
 
@@ -417,10 +443,11 @@ class CylinderQAN(QAN):
 @dataclass
 class MobiusBandQAN(QAN):
     manifold: AbstractManifold = manifolds.MobiusBand()
-    spacing: float = 0.1
+    spacing: float = 0.2
     alpha: float = 2
     sigma: float = 2
-    offset_magnitude: float = 0.1
+    offset_magnitude: float = 0.2
+    beta: float = 5e2  # control gain for velocity input
 
     @staticmethod
     def coordinates_offset(
@@ -434,6 +461,66 @@ class MobiusBandQAN(QAN):
             theta[:, dim] += direction * offset_magnitude
         return theta
 
+    def make_trajectory(self, n_steps: int = 1000) -> np.ndarray:
+        """Creates a trajectory that demonstrates the Mobius band's characteristic flip."""
+        trajectory = np.zeros((n_steps, self.manifold.dim))
+
+        # Get parameter space bounds for height with padding
+        padding = 0.25
+        h_min = self.manifold.parameter_space.ranges[0].start + padding
+        h_max = self.manifold.parameter_space.ranges[0].end - padding
+
+        # Create time parameter for one full rotation
+        t = np.linspace(0, 2 * np.pi, n_steps)
+
+        # Height flips from positive to negative as we go around
+        # Using cosine to smoothly transition the height
+        trajectory[:, 0] = (h_max - h_min) / 2 * np.cos(t / 2) + (
+            h_max + h_min
+        ) / 2
+
+        # Angle simply wraps around once
+        trajectory[:, 1] = t
+
+        return trajectory
+
+    def compute_theta_dot(
+        self, theta: np.ndarray, theta_prev: np.ndarray
+    ) -> np.ndarray:
+        """Compute velocities accounting for periodic boundary in angular dimension."""
+        delta_theta = theta - theta_prev
+
+        # Handle periodic boundary crossing for angular dimension
+        if delta_theta[1] > np.pi:
+            delta_theta[1] -= 2 * np.pi
+        elif delta_theta[1] < -np.pi:
+            delta_theta[1] += 2 * np.pi
+
+        return delta_theta
+
+    def compute_can_input(
+        self, i: int, theta_dot: np.ndarray, theta: np.ndarray
+    ) -> np.ndarray:
+        """Compute input for each CAN based on velocities and current position.
+
+        Args:
+            i: CAN index (0-3, two CANs per dimension)
+            theta_dot: Velocities [dh/dt, dθ/dt]
+            theta: Current position on the manifold [h, θ]
+        """
+        # Determine which dimension this CAN handles
+        dim = i // 2
+        # If even index, use positive direction, if odd use negative
+        sign = 1 if i % 2 == 0 else -1
+
+        # For height dimension, flip direction based on angle
+        if dim == 0:
+            # Flip the height direction when crossing the twist
+            if theta[1] > np.pi:
+                sign = -sign
+
+        return sign * self.beta * theta_dot[dim]
+
 
 # ---------------------------------- Sphere ---------------------------------- #
 @dataclass
@@ -442,7 +529,10 @@ class SphereQAN(QAN):
     spacing: float = 0.075
     alpha: float = 2
     sigma: float = 3
-    offset_magnitude: float = 0.1
+    offset_magnitude: float = 0.2
+    beta: float = (
+        2e2  # reduced from 2e4 to be more in line with other manifolds
+    )
 
     @staticmethod
     def coordinates_offset(
@@ -456,14 +546,73 @@ class SphereQAN(QAN):
             theta[:, z] += offset * theta[:, y]  # y
         elif dim == 1:
             # Rotation around Y axis: [z, 0, -x]
-            theta[:, x] += offset * theta[:, z]  # -x
-            theta[:, z] += -offset * theta[:, x]  # z
+            theta[:, x] += offset * theta[:, z]  # z
+            theta[:, z] += -offset * theta[:, x]  # -x
         else:
             # Rotation around Z axis: [-y, x, 0]
-            theta[:, x] += -offset * theta[:, y]  # x
-            theta[:, y] += offset * theta[:, x]  # -y
+            theta[:, x] += -offset * theta[:, y]  # -y
+            theta[:, y] += offset * theta[:, x]  # x
 
         # Normalize to keep points on the sphere
         norms = np.sqrt(np.sum(theta**2, axis=1))
         theta /= norms[:, None]
         return theta
+
+    def make_trajectory(self, n_steps: int = 1000) -> np.ndarray:
+        """Creates a trajectory that traces interesting paths on the sphere."""
+        trajectory = np.zeros((n_steps, self.manifold.dim))
+
+        # Create time parameter
+        t = np.linspace(0, 4 * np.pi, n_steps) + np.pi
+
+        # Create a spiral-like trajectory on the sphere
+        phi = t  # azimuthal angle
+        theta = np.pi / 4 * np.sin(t / 2) + np.pi / 2  # polar angle
+
+        # Convert from spherical to Cartesian coordinates
+        trajectory[:, 0] = np.sin(theta) * np.cos(phi)  # x
+        trajectory[:, 1] = np.sin(theta) * np.sin(phi)  # y
+        trajectory[:, 2] = np.cos(theta)  # z
+
+        # Normalize to ensure points are exactly on sphere
+        norms = np.sqrt(np.sum(trajectory**2, axis=1))
+        trajectory /= norms[:, None]
+
+        return trajectory
+
+    def compute_theta_dot(
+        self, theta: np.ndarray, theta_prev: np.ndarray
+    ) -> np.ndarray:
+        """Compute velocities in the tangent space of the sphere."""
+        # Compute the raw difference
+        delta = theta - theta_prev
+        return delta
+
+    def compute_can_input(
+        self, i: int, theta_dot: np.ndarray, theta: np.ndarray
+    ) -> np.ndarray:
+        """Compute input for each CAN based on velocities and current position.
+
+        Args:
+            i: CAN index (0-5, two CANs per dimension)
+            theta_dot: Velocities in R³ tangent to the sphere
+            theta: Current position on the sphere [x, y, z]
+        """
+        # Determine which dimension this CAN handles (0=X, 1=Y, 2=Z)
+        dim = i // 2
+
+        # If even index, use positive direction, if odd use negative
+        sign = 1 if i % 2 == 0 else -1
+
+        # Get projection vector
+        x, y, z = 0, 1, 2
+        if dim == 0:  # X-axis rotation: [0, -z, y]
+            psi = np.array([0, -theta[z], theta[y]])
+        elif dim == 1:  # Y-axis rotation: [z, 0, -x]
+            psi = np.array([theta[z], 0, -theta[x]])
+        else:  # Z-axis rotation: [-y, x, 0]
+            psi = np.array([-theta[y], theta[x], 0])
+
+        # Project velocity onto the projection vector
+        proj = np.dot(theta_dot, psi)
+        return sign * self.beta * proj

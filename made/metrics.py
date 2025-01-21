@@ -188,6 +188,9 @@ class MobiusEuclidean(Metric):
         # For points with large angular distance, flip height of y
         y_transformed = y.copy()
         to_flip = delta_theta > self.threshold
+        assert (
+            to_flip.shape == y_transformed[:, 0].shape
+        ), f"to_flip shape: {to_flip.shape}, y_transformed[:, 0] shape: {y_transformed[:, 0].shape}"
         y_transformed[to_flip, 0] = -y_transformed[to_flip, 0]
 
         # Compute Euclidean distance with periodic boundary on θ

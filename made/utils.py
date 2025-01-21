@@ -14,7 +14,7 @@ def _simulate_single(initial_state, can, n_steps):
     # Calculate distances from the point to all neurons
     if len(initial_state.shape) == 1:
         initial_state = initial_state.reshape(1, -1)
-    distances = can.manifold.metric(can.neurons_coordinates, initial_state)
+    distances = can.manifold.metric(initial_state, can.neurons_coordinates)
 
     # Set initial state
     radius = np.max(distances) * 0.2

@@ -382,6 +382,40 @@ def visualize_trajectory(
         traj2: Optional second trajectory as (n_steps, dim) array
         title: Plot title
     """
+    if isinstance(mfld, Sphere):
+        f = plt.figure()
+        ax = f.add_subplot(111, projection="3d")
+
+        # Plot the sphere surface points
+        pts = mfld.parameter_space.sample(1000)
+        ax.scatter(pts[:, 0], pts[:, 1], pts[:, 2], alpha=0.1, s=1)
+
+        # Plot trajectories
+        ax.plot(
+            traj1[:, 0],
+            traj1[:, 1],
+            traj1[:, 2],
+            "b-",
+            label="Trajectory 1",
+            alpha=0.7,
+        )
+        ax.scatter(traj1[0, 0], traj1[0, 1], traj1[0, 2], c="b", s=25)
+
+        if traj2 is not None:
+            ax.plot(
+                traj2[:, 0],
+                traj2[:, 1],
+                traj2[:, 2],
+                "r--",
+                label="Trajectory 2",
+                alpha=0.7,
+            )
+            ax.scatter(traj2[0, 0], traj2[0, 1], traj2[0, 2], c="r", s=25)
+            ax.legend()
+
+        ax.set_title(title)
+        return f, ax
+
     f, ax = plt.subplots()
 
     # Plot the manifold first
