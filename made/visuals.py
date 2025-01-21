@@ -3,7 +3,7 @@ import numpy as np
 
 from .manifolds import AbstractManifold, Sphere
 from .can import CAN
-
+from .qan import QAN
 
 # ---------------------------------------------------------------------------- #
 #                                     UTILS                                    #
@@ -14,7 +14,7 @@ def clean_axes(
     ax: plt.Axes,
     aspect: str = "equal",
     title: str = "",
-    ylabel: str = "$\theta_2$",
+    ylabel: str = "$\\theta_2$",
 ):
     ax.set_aspect(aspect)
     ax.set(xlabel="$\\theta_1$", ylabel=ylabel)
@@ -317,7 +317,7 @@ def visualize_can_state(can: CAN):
         clean_axes(
             ax,
             title="Neuron state",
-            ylabel="Activation" if can.manifold.dim == 1 else "$\theta_2$",
+            ylabel="Activation" if can.manifold.dim == 1 else "$\\theta_2$",
         )
 
     return f, ax
@@ -328,7 +328,7 @@ def visualize_can_state(can: CAN):
 # ---------------------------------------------------------------------------- #
 
 
-def visualize_qan_connectivity(qan, cmap="bwr", vmin=-1, vmax=0):
+def visualize_qan_connectivity(qan: QAN, cmap="bwr", vmin=-1, vmax=0):
     """
     Select 1 random neuron and visualize its connectivity in each CAN of the QAN.
     Each CAN's connectivity is shown in a separate subplot.

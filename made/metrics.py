@@ -53,7 +53,7 @@ class Euclidean(Metric):
         Returns: array of shape (n_points, n_points) with pairwise distances[i,j] = dist(x_i, f(x_j))
         """
         # Apply weights offset to second set of points
-        X_transformed = weights_offset(X)
+        X_transformed = weights_offset(X.copy())
 
         # Compute squared norms for each point
         square_norms_orig = np.sum(X**2, axis=1)
@@ -135,7 +135,7 @@ class PeriodicEuclidean(Metric):
         Returns: array of shape (n_points, n_points) with pairwise distances[i,j] = dist(x_i, f(x_j))
         """
         # Apply weights offset to second set of points
-        X_transformed = weights_offset(X)
+        X_transformed = weights_offset(X.copy())
         n_points = X.shape[0]
         distances = np.zeros((n_points, n_points))
 
