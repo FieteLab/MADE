@@ -89,11 +89,6 @@ class CAN:
     def __repr__(self):
         return f"CAN(spacing={self.spacing}, N neurons={self.connectivity_matrix.shape[0]})"
 
-    def idx2coord(self, idx: int, dim: int) -> np.ndarray:
-        n = self.nx(dim)
-        rel = idx / n
-        return self.manifold.parameter_space.ranges[dim].rel2coord(rel)
-
     @classmethod
     def default(
         cls,
@@ -144,6 +139,11 @@ class CAN:
             np.ceil((ranges[dim].end - ranges[dim].start) / self.spacing)
         )
 
+    def idx2coord(self, idx: int, dim: int) -> np.ndarray:
+        n = self.nx(dim)
+        rel = idx / n
+        return self.manifold.parameter_space.ranges[dim].rel2coord(rel)
+
     def reset(
         self,
         mode: Literal["random", "uniform", "point"] = "random",
@@ -165,7 +165,9 @@ class CAN:
                 point = point.reshape(1, -1)
 
             # Calculate distances from the point to all neurons
-            distances = self.manifold.metric(self.neurons_coordinates, point)
+            distances = self.manifold.metric(
+                self.neurons_coordinates, self.weights_offset(point)
+            )
             radius = np.max(distances) * 0.1
 
             # Set states based on distances
@@ -177,9 +179,9 @@ class CAN:
     def __call__(self):
         self.S = self.step_stateless(self.S)
 
-    def step_stateless(self, S):
+    def step_stateless(self, S, u=0):
         """Stateless version of the step function that takes state as input and returns new state"""
-        S_dot = self.connectivity_matrix @ S + 1
+        S_dot = self.connectivity_matrix @ S + u + 1
         new_S = S + (soft_relu(S_dot) - S) / self.tau
 
         if np.any(np.isnan(new_S)):

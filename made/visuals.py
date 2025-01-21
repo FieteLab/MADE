@@ -323,6 +323,68 @@ def visualize_can_state(can: CAN):
     return f, ax
 
 
+def remove_jump(x):
+    jumps = np.where(np.diff(x, prepend=0) > 0.5)[0]
+    x[jumps] = np.nan
+    return x
+
+
+def visualize_trajectory(
+    mfld: AbstractManifold,
+    traj1: np.ndarray,
+    traj2: np.ndarray = None,
+    title: str = "Trajectory",
+):
+    """
+    Visualize one or two trajectories on a manifold.
+
+    Args:
+        mfld: The manifold the trajectory lives on
+        traj1: First trajectory as (n_steps, dim) array
+        traj2: Optional second trajectory as (n_steps, dim) array
+        title: Plot title
+    """
+    f, ax = plt.subplots()
+
+    # Plot the manifold first
+    mfld.visualize(ax)
+
+    # Plot trajectories based on manifold dimension
+    if mfld.dim == 1:
+        # For 1D, x is coordinate and y is time
+        times = np.arange(len(traj1)) / 250
+        ax.plot(traj1[:, 0], times, "b-", label="Real", alpha=0.7)
+        if traj2 is not None:
+            ax.plot(
+                traj2[:, 0],
+                np.arange(len(traj2)) / 250,
+                "r--",
+                label="Simulated",
+                alpha=0.7,
+            )
+        clean_axes(ax, ylabel="Time (250x)", title=title)
+
+    else:
+        # For 2D, plot x,y coordinates
+        ax.plot(
+            traj1[:, 0], traj1[:, 1], "b-", label="Trajectory 1", alpha=0.7
+        )
+        if traj2 is not None:
+            ax.plot(
+                traj2[:, 0],
+                traj2[:, 1],
+                "r--",
+                label="Trajectory 2",
+                alpha=0.7,
+            )
+        clean_axes(ax, title=title)
+
+    if traj2 is not None:
+        ax.legend()
+
+    return f, ax
+
+
 # ---------------------------------------------------------------------------- #
 #                                      QAN                                     #
 # ---------------------------------------------------------------------------- #
@@ -346,7 +408,7 @@ def visualize_qan_connectivity(qan: QAN, cmap="bwr", vmin=-1, vmax=0):
             ax.set_title(f"CAN {i+1}")
 
     elif qan.cans[0].manifold.dim == 1:
-        f, axes = plt.subplots(2, 2, figsize=(10, 10))
+        f, axes = plt.subplots(2, 1, figsize=(10, 10))
         for i, (ax, can) in enumerate(zip(axes.flatten(), qan.cans)):
             _visualize_conn_1d(ax, can, neuron_idx)
             ax.set_title(f"CAN {i+1}")

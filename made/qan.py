@@ -32,6 +32,43 @@ class QAN:
                     )
                 )
 
+    def simulate(self, trajectory: np.ndarray) -> np.ndarray:
+        dT = 1 / 10
+
+        # 1. reset each CAN to the start of the trajectory
+        theta_0 = trajectory[0, :].copy()
+        states = []
+        for can in self.cans:
+            can.reset(mode="point", point=theta_0)
+            states.append(can.S)
+
+        # 2. run simulation
+        S = self.cans[0].S.copy()
+
+        decoded_trajectory = []
+        for t, theta in enumerate(trajectory):
+            if t == 0:
+                continue
+            # compute variable velocity
+            theta_dot = (
+                self.compute_theta_dot(theta, trajectory[t - 1, :]) * dT
+            )
+
+            # update each CAN
+            for i, can in enumerate(self.cans):
+                can_input = self.compute_can_input(i, theta_dot)
+                states[i] = can.step_stateless(S, can_input)
+
+            # get the current state as the sum of all CAN states
+            S = np.sum(states, axis=0)
+
+            # decode the state into a trajectory
+            decoded_trajectory.append(self.decode_state(S))
+        out = np.array(decoded_trajectory)
+        if len(out.shape) == 1:
+            out = out.reshape(-1, 1)
+        return out
+
 
 # ---------------------------------------------------------------------------- #
 #                              SPECIFIC TOPOLOGIES                             #
@@ -46,6 +83,7 @@ class LineQAN(QAN):
     alpha: float = 3
     sigma: float = 1
     offset_magnitude: float = 0.5
+    beta: float = 1e2
 
     @staticmethod
     def coordinates_offset(
@@ -53,6 +91,43 @@ class LineQAN(QAN):
     ) -> np.ndarray:
         theta[:, dim] += direction * offset_magnitude
         return theta
+
+    def make_trajectory(self, n_steps: int = 1000) -> np.ndarray:
+        # make a trajectory that moves up and down the line multiple times
+        trajectory = np.zeros((n_steps, self.manifold.dim))
+
+        vmin = self.manifold.parameter_space.ranges[0].start
+        vmax = self.manifold.parameter_space.ranges[0].end
+
+        # Split into 4 segments: vmin->vmax->vmin->vmax
+        n_per_segment = n_steps // 4
+
+        trajectory[:n_per_segment, 0] = np.linspace(vmin, vmax, n_per_segment)
+        trajectory[n_per_segment : 2 * n_per_segment, 0] = np.linspace(
+            vmax, vmin, n_per_segment
+        )
+        trajectory[2 * n_per_segment : 3 * n_per_segment, 0] = np.linspace(
+            vmin, vmax, n_per_segment
+        )
+        trajectory[3 * n_per_segment :, 0] = np.linspace(
+            vmax, vmin, n_steps - 3 * n_per_segment
+        )
+
+        return trajectory
+
+    def compute_theta_dot(
+        self, theta: np.ndarray, theta_prev: np.ndarray
+    ) -> np.ndarray:
+        return theta - theta_prev
+
+    def compute_can_input(self, i: int, theta_dot: np.ndarray) -> np.ndarray:
+        if i == 1:
+            theta_dot = -theta_dot
+        return self.beta * theta_dot
+
+    def decode_state(self, S: np.ndarray) -> np.ndarray:
+        max_idx = np.argmax(S)
+        return self.cans[0].idx2coord(max_idx, 0)
 
 
 # ----------------------------------- Ring ----------------------------------- #
@@ -71,6 +146,26 @@ class RingQAN(QAN):
         theta[:, dim] += direction * offset_magnitude
         theta[:, dim] = np.mod(theta[:, dim], 2 * np.pi)
         return theta
+
+    def make_trajectory(self, n_steps: int = 1000) -> np.ndarray:
+        # make a trajectory that goes 2 turns clockwise then 2 turns counterclockwise
+        trajectory = np.zeros((n_steps, self.manifold.dim))
+
+        # Split into 2 segments
+        n_per_segment = n_steps // 2
+
+        # First segment: 2 turns clockwise
+        trajectory[:n_per_segment, 0] = np.linspace(
+            0, 2 * 2 * np.pi, n_per_segment
+        )
+
+        # Second segment: 2 turns counterclockwise
+        trajectory[n_per_segment:, 0] = np.linspace(
+            2 * 2 * np.pi, 0, n_steps - n_per_segment
+        )
+
+        trajectory[:, 0] = np.mod(trajectory[:, 0], 2 * np.pi)
+        return trajectory
 
 
 # ----------------------------------- Plane ---------------------------------- #
