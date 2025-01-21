@@ -9,11 +9,14 @@ class Metric:
         """
         pass
 
-    def pairwise_distances(self, X: np.ndarray) -> np.ndarray:
+    def pairwise_distances(
+        self, X: np.ndarray, weights_offset=lambda x: x
+    ) -> np.ndarray:
         """
         Compute pairwise distances between all points in X.
         X: array of shape (n_points, dim)
-        Returns: array of shape (n_points, n_points) with pairwise distances
+        weights_offset: function to transform coordinates before computing distances
+        Returns: array of shape (n_points, n_points) with pairwise distances[i,j] = dist(x_i, f(x_j))
         """
         pass
 
@@ -38,23 +41,32 @@ class Euclidean(Metric):
 
         return np.linalg.norm(x - y, axis=1)
 
-    def pairwise_distances(self, X: np.ndarray) -> np.ndarray:
+    def pairwise_distances(
+        self, X: np.ndarray, weights_offset=lambda x: x
+    ) -> np.ndarray:
         """
         Compute pairwise Euclidean distances between all points.
         Uses a vectorized approach that avoids explicit loops.
 
         X: array of shape (n_points, dim)
-        Returns: array of shape (n_points, n_points)
+        weights_offset: function to transform coordinates before computing distances
+        Returns: array of shape (n_points, n_points) with pairwise distances[i,j] = dist(x_i, f(x_j))
         """
+        # Apply weights offset to second set of points
+        X_transformed = weights_offset(X)
+
         # Compute squared norms for each point
-        square_norms = np.sum(X**2, axis=1)
+        square_norms_orig = np.sum(X**2, axis=1)
+        square_norms_trans = np.sum(X_transformed**2, axis=1)
 
         # Use broadcasting to compute pairwise distances:
         # dist^2(x,y) = ||x||^2 + ||y||^2 - 2<x,y>
-        dot_product = X @ X.T
+        dot_product = X @ X_transformed.T
 
         squared_distances = (
-            square_norms[:, None] + square_norms[None, :] - 2 * dot_product
+            square_norms_orig[:, None]
+            + square_norms_trans[None, :]
+            - 2 * dot_product
         )
 
         # Add small epsilon to prevent numerical issues with sqrt of very small numbers
@@ -112,19 +124,24 @@ class PeriodicEuclidean(Metric):
 
         return np.linalg.norm(final_diff, axis=1)
 
-    def pairwise_distances(self, X: np.ndarray) -> np.ndarray:
+    def pairwise_distances(
+        self, X: np.ndarray, weights_offset=lambda x: x
+    ) -> np.ndarray:
         """
         Compute pairwise distances between all points, respecting periodic boundaries.
 
         X: array of shape (n_points, dim)
-        Returns: array of shape (n_points, n_points)
+        weights_offset: function to transform coordinates before computing distances
+        Returns: array of shape (n_points, n_points) with pairwise distances[i,j] = dist(x_i, f(x_j))
         """
+        # Apply weights offset to second set of points
+        X_transformed = weights_offset(X)
         n_points = X.shape[0]
         distances = np.zeros((n_points, n_points))
 
         # Compute differences for all pairs
         for i in range(n_points):
-            distances[i, :] = self(X[i : i + 1], X)
+            distances[i, :] = self(X[i : i + 1], X_transformed)
 
         return distances
 
@@ -173,20 +190,25 @@ class MobiusEuclidean(Metric):
 
         return self.periodic(x_transformed, y)
 
-    def pairwise_distances(self, X: np.ndarray) -> np.ndarray:
+    def pairwise_distances(
+        self, X: np.ndarray, weights_offset=lambda x: x
+    ) -> np.ndarray:
         """
         Compute pairwise distances between all points on the Möbius strip.
 
         Args:
             X: array of shape (n_points, 2) where each point is (t, θ)
+            weights_offset: function to transform coordinates before computing distances
         Returns:
-            array of shape (n_points, n_points) with pairwise distances
+            array of shape (n_points, n_points) with pairwise distances[i,j] = dist(x_i, f(x_j))
         """
+        # Apply weights offset to second set of points
+        X_transformed = weights_offset(X)
         n_points = X.shape[0]
         distances = np.zeros((n_points, n_points))
 
         for i in range(n_points):
-            distances[i, :] = self(X, X[i : i + 1])
+            distances[i, :] = self(X[i : i + 1], X_transformed)
 
         return distances
 
@@ -234,20 +256,29 @@ class SphericalDistance(Metric):
         # Distance = R * arccos(dot_product)
         return self.radius * np.arccos(dot_product)
 
-    def pairwise_distances(self, X: np.ndarray) -> np.ndarray:
+    def pairwise_distances(
+        self, X: np.ndarray, weights_offset=lambda x: x
+    ) -> np.ndarray:
         """
         Compute pairwise great circle distances between all points on the sphere.
 
         Args:
             X: array of shape (n_points, 3) representing points in 3D Cartesian coordinates
+            weights_offset: function to transform coordinates before computing distances
         Returns:
-            array of shape (n_points, n_points) with pairwise distances
+            array of shape (n_points, n_points) with pairwise distances[i,j] = dist(x_i, f(x_j))
         """
+        # Apply weights offset to second set of points
+        X_transformed = weights_offset(X)
+
         # Normalize all vectors to unit sphere
         X_norm = X / np.linalg.norm(X, axis=1, keepdims=True)
+        X_transformed_norm = X_transformed / np.linalg.norm(
+            X_transformed, axis=1, keepdims=True
+        )
 
         # Compute all pairwise dot products
-        dot_products = X_norm @ X_norm.T
+        dot_products = X_norm @ X_transformed_norm.T
 
         # Clip to avoid numerical issues
         dot_products = np.clip(dot_products, -1.0, 1.0)

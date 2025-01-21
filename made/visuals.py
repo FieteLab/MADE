@@ -5,6 +5,11 @@ from .manifolds import AbstractManifold, Sphere
 from .can import CAN
 
 
+# ---------------------------------------------------------------------------- #
+#                                     UTILS                                    #
+# ---------------------------------------------------------------------------- #
+
+
 def clean_axes(
     ax: plt.Axes,
     aspect: str = "equal",
@@ -24,7 +29,116 @@ def clean_axes(
     ax.set_title(title)
 
 
-def plot_lattice(
+def _visualize_conn_sphere(ax, can, neuron_idx, cmap="bwr", vmin=-1, vmax=0):
+    """Helper function to visualize connectivity for a sphere manifold."""
+    # Get connectivity for this neuron
+    neuron_connectivity = can.connectivity_matrix[neuron_idx]
+
+    # Create 3D scatter plot with connectivity as color
+    scatter = ax.scatter(
+        can.neurons_coordinates[:, 0],
+        can.neurons_coordinates[:, 1],
+        can.neurons_coordinates[:, 2],
+        c=neuron_connectivity,
+        cmap=cmap,
+        vmin=vmin,
+        vmax=vmax,
+        s=15,
+    )
+
+    # Plot the selected neuron location
+    neuron_coords = can.neurons_coordinates[neuron_idx]
+    ax.scatter(
+        neuron_coords[0],
+        neuron_coords[1],
+        neuron_coords[2],
+        color="black",
+        s=100,
+        marker="*",
+        label="Selected neuron",
+    )
+
+    plt.colorbar(scatter, ax=ax)
+    ax.legend()
+    return ax
+
+
+def _visualize_conn_1d(ax, can, neuron_idx):
+    """Helper function to visualize connectivity for a 1D manifold."""
+    # Get connectivity for this neuron
+    neuron_connectivity = can.connectivity_matrix[neuron_idx]
+
+    # Plot connectivity as a line
+    ax.plot(
+        can.neurons_coordinates[:, 0],
+        neuron_connectivity,
+        "b-",
+        label="Connectivity",
+    )
+
+    # Plot the selected neuron location
+    neuron_coord = can.neurons_coordinates[neuron_idx]
+    ax.scatter(
+        neuron_coord[0],
+        0,
+        color="red",
+        s=100,
+        marker="*",
+        label="Selected neuron",
+    )
+
+    ax.legend()
+    clean_axes(ax, ylabel="Connectivity")
+    return ax
+
+
+def _visualize_conn_2d(ax, can, neuron_idx, cmap="bwr", vmin=-1, vmax=0):
+    """Helper function to visualize connectivity for a 2D manifold."""
+    # Calculate grid dimensions based on spacing
+    nx = can.nx(0)
+    ny = can.nx(1)
+
+    # Reshape coordinates into 2D grids
+    X = can.neurons_coordinates[:, 0].reshape(ny, nx)
+    Y = can.neurons_coordinates[:, 1].reshape(ny, nx)
+
+    # Get connectivity for this neuron and reshape to grid
+    neuron_connectivity = can.connectivity_matrix[neuron_idx].reshape(ny, nx)
+
+    # Create contour plot
+    contour = ax.contourf(
+        X,
+        Y,
+        neuron_connectivity,
+        levels=50,
+        cmap=cmap,
+        vmin=vmin,
+        vmax=vmax,
+    )
+    plt.colorbar(contour, ax=ax)
+
+    # Plot the selected neuron location
+    neuron_coords = can.neurons_coordinates[neuron_idx]
+    ax.scatter(
+        neuron_coords[0],
+        neuron_coords[1],
+        color="black",
+        s=100,
+        marker="*",
+        label="Selected neuron",
+    )
+
+    ax.legend()
+    clean_axes(ax)
+    return ax
+
+
+# ---------------------------------------------------------------------------- #
+#                                      CAN                                     #
+# ---------------------------------------------------------------------------- #
+
+
+def visualize_manifold(
     mfld: AbstractManifold,
     show_distances: bool = False,
     distance_point: np.ndarray = None,
@@ -115,7 +229,7 @@ def plot_lattice(
     return f, ax
 
 
-def can_connectivity(can: CAN, cmap="bwr", vmin=-1, vmax=0):
+def visualize_can_connectivity(can: CAN, cmap="bwr", vmin=-1, vmax=0):
     """
     Select 4 random neurons and plot their connectivity
     to the rest of the lattice using contour plots for 2D,
@@ -126,118 +240,28 @@ def can_connectivity(can: CAN, cmap="bwr", vmin=-1, vmax=0):
 
     if isinstance(can.manifold, Sphere):
         f = plt.figure(figsize=(15, 10))
-        for i in range(4):
+        for i, neuron_idx in enumerate(neurons_idx):
             ax = f.add_subplot(2, 2, i + 1, projection="3d")
-
-            # Get connectivity for this neuron
-            neuron_connectivity = can.connectivity_matrix[neurons_idx[i]]
-
-            # Create 3D scatter plot with connectivity as color
-            scatter = ax.scatter(
-                can.neurons_coordinates[:, 0],
-                can.neurons_coordinates[:, 1],
-                can.neurons_coordinates[:, 2],
-                c=neuron_connectivity,
-                cmap=cmap,
-                vmin=vmin,
-                vmax=vmax,
-                s=15,
-            )
-
-            # Plot the selected neuron location
-            neuron_coords = can.neurons_coordinates[neurons_idx[i]]
-            ax.scatter(
-                neuron_coords[0],
-                neuron_coords[1],
-                neuron_coords[2],
-                color="black",
-                s=100,
-                marker="*",
-                label="Selected neuron",
-            )
-
-            plt.colorbar(scatter, ax=ax)
-            ax.legend()
-            ax.set_title(f"Neuron {neurons_idx[i]}")
-
-        axes = f.axes
+            _visualize_conn_sphere(ax, can, neuron_idx, cmap, vmin, vmax)
+            ax.set_title(f"Neuron {neuron_idx}")
 
     elif can.manifold.dim == 1:
         f, axes = plt.subplots(2, 2, figsize=(10, 10))
-        for i, ax in enumerate(axes.flatten()):
-            # Get connectivity for this neuron
-            neuron_connectivity = can.connectivity_matrix[neurons_idx[i]]
+        for ax, neuron_idx in zip(axes.flatten(), neurons_idx):
+            _visualize_conn_1d(ax, can, neuron_idx)
+            ax.set_title(f"Neuron {neuron_idx}")
 
-            # Plot connectivity as a line
-            ax.plot(
-                can.neurons_coordinates[:, 0],
-                neuron_connectivity,
-                "b-",
-                label="Connectivity",
-            )
-
-            # Plot the selected neuron location
-            neuron_coord = can.neurons_coordinates[neurons_idx[i]]
-            ax.scatter(
-                neuron_coord[0],
-                0,
-                color="red",
-                s=100,
-                marker="*",
-                label="Selected neuron",
-            )
-
-            ax.legend()
-            clean_axes(
-                ax, title=f"Neuron {neurons_idx[i]}", ylabel="Connectivity"
-            )
     else:
         f, axes = plt.subplots(2, 2, figsize=(10, 10))
-        # Calculate grid dimensions based on spacing
-        nx = can.nx(0)
-        ny = can.nx(1)
-
-        # Reshape coordinates into 2D grids
-        X = can.neurons_coordinates[:, 0].reshape(ny, nx)
-        Y = can.neurons_coordinates[:, 1].reshape(ny, nx)
-
-        for i, ax in enumerate(axes.flatten()):
-            # Get connectivity for this neuron and reshape to grid
-            neuron_connectivity = can.connectivity_matrix[
-                neurons_idx[i]
-            ].reshape(ny, nx)
-
-            # Create contour plot
-            contour = ax.contourf(
-                X,
-                Y,
-                neuron_connectivity,
-                levels=50,
-                cmap=cmap,
-                vmin=vmin,
-                vmax=vmax,
-            )
-            plt.colorbar(contour, ax=ax)
-
-            # Plot the selected neuron location
-            neuron_coords = can.neurons_coordinates[neurons_idx[i]]
-            ax.scatter(
-                neuron_coords[0],
-                neuron_coords[1],
-                color="black",
-                s=100,
-                marker="*",
-                label="Selected neuron",
-            )
-
-            ax.legend()
-            clean_axes(ax, title=f"Neuron {neurons_idx[i]}")
+        for ax, neuron_idx in zip(axes.flatten(), neurons_idx):
+            _visualize_conn_2d(ax, can, neuron_idx, cmap, vmin, vmax)
+            ax.set_title(f"Neuron {neuron_idx}")
 
     plt.tight_layout()
     return f, axes
 
 
-def plot_can_state(can: CAN):
+def visualize_can_state(can: CAN):
     """
     Visualize the current state of the CAN using a scatter plot.
     For 1D manifolds, plots along a line. For 2D manifolds, plots
@@ -297,3 +321,41 @@ def plot_can_state(can: CAN):
         )
 
     return f, ax
+
+
+# ---------------------------------------------------------------------------- #
+#                                      QAN                                     #
+# ---------------------------------------------------------------------------- #
+
+
+def visualize_qan_connectivity(qan, cmap="bwr", vmin=-1, vmax=0):
+    """
+    Select 1 random neuron and visualize its connectivity in each CAN of the QAN.
+    Each CAN's connectivity is shown in a separate subplot.
+    """
+    # Select random neuron index
+    total_neurons = qan.cans[0].neurons_coordinates.shape[0]
+    neuron_idx = np.random.choice(total_neurons)
+
+    # Create figure based on manifold type
+    if isinstance(qan.cans[0].manifold, Sphere):
+        f = plt.figure(figsize=(15, 10))
+        for i, can in enumerate(qan.cans):
+            ax = f.add_subplot(2, 2, i + 1, projection="3d")
+            _visualize_conn_sphere(ax, can, neuron_idx, cmap, vmin, vmax)
+            ax.set_title(f"CAN {i+1}")
+
+    elif qan.cans[0].manifold.dim == 1:
+        f, axes = plt.subplots(2, 2, figsize=(10, 10))
+        for i, (ax, can) in enumerate(zip(axes.flatten(), qan.cans)):
+            _visualize_conn_1d(ax, can, neuron_idx)
+            ax.set_title(f"CAN {i+1}")
+
+    else:
+        f, axes = plt.subplots(2, 2, figsize=(10, 10))
+        for i, (ax, can) in enumerate(zip(axes.flatten(), qan.cans)):
+            _visualize_conn_2d(ax, can, neuron_idx, cmap, vmin, vmax)
+            ax.set_title(f"CAN {i+1}")
+
+    plt.tight_layout()
+    return f, f.axes

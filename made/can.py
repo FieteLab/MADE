@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import numpy as np
 from loguru import logger
-from typing import Literal
+from typing import Literal, Callable
 
 from .manifolds import (
     AbstractManifold,
@@ -54,6 +54,7 @@ class CAN:
     alpha: float
     sigma: float
     tau: float = 1.7
+    weights_offset: Callable = lambda x: x
 
     def __post_init__(self):
         self.kernel = Kernel(self.alpha, self.sigma)
@@ -74,7 +75,7 @@ class CAN:
         # get connectivity matrix for all neurons
         total_neurons = self.neurons_coordinates.shape[0]
         distances = self.manifold.metric.pairwise_distances(
-            self.neurons_coordinates
+            self.neurons_coordinates, weights_offset=self.weights_offset
         )
         quality_check(distances, "distances")
 
