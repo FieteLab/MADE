@@ -11,52 +11,28 @@ with open(req_path) as f:
     requirements = f.read().splitlines()
 
 setup(
-    name="",  # Required
+    name="made",  # Required
     version="0.0.1",  # Required
-    description="",  # Optional
+    description="Manifold Activity Direct Embedding (MADE) - A toolkit for engineering Continuous Attractor Networks.",  # Optional
     long_description=long_description,  # Optional
+    long_description_content_type="text/markdown",
+    author="Federico Barabas",
+    author_email="claudif@mit.com",  # You should update this
+    url="https://github.com/FieteLab/MADE",
     packages=find_packages(),  # Required
     python_requires=">=3.8, <4",
     install_requires=requirements,
-    dependency_links=["git+https://github.com/..."],
-    extras_require={  # Optional
-        "dev": ["pytest", "pytest-cov"],
-    },
+    dependency_links=[""],
+    extras_require={},
+    classifiers=[
+        "Development Status :: 3 - Alpha",
+        "Intended Audience :: Science/Research",
+        "Topic :: Scientific/Engineering :: Artificial Intelligence",
+        "License :: OSI Approved :: MIT License",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+    ],
+    keywords="neural-dynamics, manifold, attractor-networks",
 )
-
-# # List additional groups of dependencies here (e.g. development
-# # dependencies). Users will be able to install these using the "extras"
-# # syntax, for example:
-# #
-# #   $ pip install sampleproject[dev]
-# #
-# # Similar to `install_requires` above, these must be valid existing
-# # projects.
-# extras_require={  # Optional
-#     "dev": ["check-manifest"],
-#     "test": ["coverage"],
-# },
-
-# # Entry points. The following would provide a command called `sample` which
-# # executes the function `main` from this package when invoked:
-# entry_points={  # Optional
-#     "console_scripts": [
-#         "sample=sample:main",
-#     ],
-# },
-# List additional URLs that are relevant to your project as a dict.
-#
-# # This field corresponds to the "Project-URL" metadata fields:
-# # https://packaging.python.org/specifications/core-metadata/#project-url-multiple-use
-# #
-# # Examples listed include a pattern for specifying where the package tracks
-# # issues, where the source is hosted, where to say thanks to the package
-# # maintainers, and where to support the project financially. The key is
-# # what's used to render the link text on PyPI.
-# project_urls={  # Optional
-#     "Bug Reports": "https://github.com/pypa/sampleproject/issues",
-#     "Funding": "https://donate.pypi.org",
-#     "Say Thanks!": "http://saythanks.io/to/example",
-#     "Source": "https://github.com/pypa/sampleproject/",
-# },
-# )

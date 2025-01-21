@@ -25,7 +25,7 @@ def main():
         samples = can.manifold.parameter_space.sample(
             N_SAMPLES[topology], pads=PADS[topology]
         )
-        if can.manifold.dim > 1:
+        if can.manifold.dim > 1 and topology != "Sphere":
             samples = samples[::3, :]
 
         final_states = simulate_many_with_initial_states(can, samples, 25)
