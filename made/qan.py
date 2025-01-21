@@ -51,7 +51,10 @@ class QAN:
                 continue
             # compute variable velocity
             theta_dot = (
-                self.compute_theta_dot(theta, trajectory[t - 1, :]) * dT
+                self.compute_theta_dot(
+                    theta.copy(), trajectory[t - 1, :].copy()
+                )
+                * dT
             )
 
             # update each CAN
@@ -68,6 +71,10 @@ class QAN:
         if len(out.shape) == 1:
             out = out.reshape(-1, 1)
         return out
+
+    def decode_state(self, S: np.ndarray) -> np.ndarray:
+        max_idx = np.argmax(S)
+        return self.cans[0].idx2coord(max_idx, 0)
 
 
 # ---------------------------------------------------------------------------- #
@@ -125,10 +132,6 @@ class LineQAN(QAN):
             theta_dot = -theta_dot
         return self.beta * theta_dot
 
-    def decode_state(self, S: np.ndarray) -> np.ndarray:
-        max_idx = np.argmax(S)
-        return self.cans[0].idx2coord(max_idx, 0)
-
 
 # ----------------------------------- Ring ----------------------------------- #
 @dataclass
@@ -137,7 +140,8 @@ class RingQAN(QAN):
     spacing: float = 0.075
     alpha: float = 3
     sigma: float = 1
-    offset_magnitude: float = 0.1
+    offset_magnitude: float = 0.2
+    beta: float = 4e2
 
     @staticmethod
     def coordinates_offset(
@@ -148,24 +152,51 @@ class RingQAN(QAN):
         return theta
 
     def make_trajectory(self, n_steps: int = 1000) -> np.ndarray:
-        # make a trajectory that goes 2 turns clockwise then 2 turns counterclockwise
+        # make a trajectory that goes 0->2pi->0->2pi
         trajectory = np.zeros((n_steps, self.manifold.dim))
 
-        # Split into 2 segments
-        n_per_segment = n_steps // 2
+        # Split into 4 segments
+        n_per_segment = n_steps // 4
 
-        # First segment: 2 turns clockwise
+        # First segment: 0 -> 2pi
         trajectory[:n_per_segment, 0] = np.linspace(
-            0, 2 * 2 * np.pi, n_per_segment
+            0, 2 * np.pi, n_per_segment
         )
 
-        # Second segment: 2 turns counterclockwise
-        trajectory[n_per_segment:, 0] = np.linspace(
-            2 * 2 * np.pi, 0, n_steps - n_per_segment
+        # Second segment: 2pi -> 0
+        trajectory[n_per_segment : 2 * n_per_segment, 0] = np.linspace(
+            2 * np.pi, 0, n_per_segment
         )
 
-        trajectory[:, 0] = np.mod(trajectory[:, 0], 2 * np.pi)
+        # Third segment: 0 -> 2pi
+        trajectory[2 * n_per_segment : 3 * n_per_segment, 0] = np.linspace(
+            0, 2 * np.pi, n_per_segment
+        )
+
+        # Fourth segment: 2pi -> 0
+        trajectory[3 * n_per_segment :, 0] = np.linspace(
+            2 * np.pi, 0, n_steps - 3 * n_per_segment
+        )
+
         return trajectory
+
+    def compute_theta_dot(
+        self, theta: np.ndarray, theta_prev: np.ndarray
+    ) -> np.ndarray:
+        delta_theta = theta - theta_prev
+
+        if delta_theta > np.pi:
+            if theta < theta_prev:
+                theta += 2 * np.pi
+            else:
+                theta -= 2 * np.pi
+            delta_theta = theta - theta_prev
+        return delta_theta
+
+    def compute_can_input(self, i: int, theta_dot: np.ndarray) -> np.ndarray:
+        if i == 1:
+            theta_dot = -theta_dot
+        return self.beta * theta_dot
 
 
 # ----------------------------------- Plane ---------------------------------- #
