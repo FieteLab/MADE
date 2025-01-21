@@ -8,6 +8,7 @@ from made.metrics import (
     PeriodicEuclidean,
     MobiusEuclidean,
     SphericalDistance,
+    KleinBottleMetric,
 )
 
 
@@ -153,7 +154,9 @@ class AbstractManifold:
         self.parameter_space.visualize(ax)
 
     def contains(self, point: np.ndarray) -> bool:
-        assert len(point) == self.dim, "Incorrect number of dimensions"
+        assert (
+            len(point) == self.dim
+        ), f"Incorrect number of dimensions: expected {self.dim}, got {len(point)}"
         for i, r in enumerate(self.parameter_space.ranges):
             if not r.start <= point[i] <= r.end:
                 return False
@@ -240,3 +243,19 @@ class Sphere(AbstractManifold):
         ]
     )
     metric: Metric = SphericalDistance(dim)
+
+
+# ------------------------------- Klein Bottle ------------------------------- #
+@dataclass
+class KleinBottle(AbstractManifold):
+    dim: int = 2
+    parameter_space: ParameterSpace = ParameterSpace(
+        [
+            Range(0, 2 * np.pi, periodic=True),
+            Range(0, 2 * np.pi, periodic=True),
+        ]
+    )
+    metric: Metric = None  # will be set in __post_init__
+
+    def __post_init__(self):
+        self.metric = KleinBottleMetric(self.dim, self.parameter_space)

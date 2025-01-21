@@ -9,7 +9,7 @@ def clean_axes(
     ax: plt.Axes,
     aspect: str = "equal",
     title: str = "",
-    ylabel: str = "$\theta_2$",
+    ylabel: str = "$\\theta_2$",
 ):
     ax.set_aspect(aspect)
     ax.set(xlabel="$\\theta_1$", ylabel=ylabel)
@@ -28,7 +28,7 @@ def plot_lattice(
     mfld: AbstractManifold,
     show_distances: bool = False,
     distance_point: np.ndarray = None,
-    cmap="Greens",
+    cmap="Greens_r",
 ):
     if mfld.dim == 1:
         f, ax = plt.subplots()
@@ -293,7 +293,7 @@ def plot_can_state(can: CAN):
         clean_axes(
             ax,
             title="Neuron state",
-            ylabel="Activation" if can.manifold.dim == 1 else "$\theta_2$",
+            ylabel="Activation" if can.manifold.dim == 1 else "$\\theta_2$",
         )
 
     return f, ax

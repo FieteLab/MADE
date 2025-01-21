@@ -12,6 +12,7 @@ from .manifolds import (
     Ring,
     MobiusBand,
     Sphere,
+    KleinBottle,
 )
 
 
@@ -104,6 +105,7 @@ class CAN:
             "Cylinder",
             "MobiusBand",
             "Sphere",
+            "KleinBottle",
         ] = "Plane",
     ):
         if topology.lower() == "line":
@@ -132,6 +134,10 @@ class CAN:
 
         elif topology.lower() == "sphere":
             manifold = Sphere()
+            return cls(manifold, spacing=0.075, alpha=2, sigma=3)
+
+        elif topology.lower() == "kleinbottle":
+            manifold = KleinBottle()
             return cls(manifold, spacing=0.075, alpha=2, sigma=3)
 
         else:

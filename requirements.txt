@@ -5,3 +5,4 @@ black
 flake8
 loguru
 scikit-learn
+networkx

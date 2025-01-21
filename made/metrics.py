@@ -1,4 +1,6 @@
 import numpy as np
+import networkx as nx
+from sklearn.neighbors import NearestNeighbors
 
 
 class Metric:
@@ -254,5 +256,149 @@ class SphericalDistance(Metric):
 
         # Convert to distances
         distances = self.radius * np.arccos(dot_products)
+
+        return distances
+
+
+# ---------------------------------------------------------------------------- #
+#                              KLEIN BOTTLE METRIC                             #
+# ---------------------------------------------------------------------------- #
+class KleinBottleMetric(Metric):
+    def __init__(
+        self,
+        dim: int,
+        parameter_space,
+        n_points: int = 30,
+        n_neighbors: int = 8,
+    ):
+        """
+        Initialize KleinBottleMetric using a graph-based approach.
+
+        Args:
+            dim: dimension of the parameter space (should be 2)
+            parameter_space: parameter space object defining the ranges
+            n_points: number of points to sample in each dimension for graph construction
+            n_neighbors: number of neighbors to connect in the graph
+        """
+        self.dim = dim
+        self.n_points = n_points
+        self.n_neighbors = n_neighbors
+
+        # Sample points from parameter space
+        self.points = parameter_space.sample(n_points)
+
+        # Pre-compute embedded points in R4
+        self.embedded_points = self.klein_bottle_embedding(self.points)
+
+        # Create graph and compute distances
+        self.graph = self._create_klein_bottle_graph()
+        self.distance_matrix = nx.floyd_warshall_numpy(self.graph)
+
+        # Pre-compute KDTree for fast nearest neighbor search in R4
+        self.kdtree = NearestNeighbors(
+            n_neighbors=8, algorithm="ball_tree", metric="euclidean"
+        )
+        self.kdtree.fit(self.embedded_points)
+
+    def klein_bottle_embedding(self, pts: np.ndarray) -> np.ndarray:
+        """Embed a point from the parameter space into R4."""
+        # Parametric equations for the 4D Klein bottle
+        x1 = (2 + np.cos(pts[:, 1])) * np.cos(pts[:, 0])
+        x2 = (2 + np.cos(pts[:, 1])) * np.sin(pts[:, 0])
+        x3 = np.sin(pts[:, 1])
+        x4 = np.sin(pts[:, 1]) * np.cos(pts[:, 1] / 2)
+        out = np.array([x1, x2, x3, x4]).T
+        return out
+
+    def _create_klein_bottle_graph(self) -> nx.Graph:
+        """Create a graph where vertices are points and edges connect nearest neighbors in R4."""
+        print("Creating Klein bottle graph...")
+        # Create empty weighted graph
+        G = nx.Graph()
+
+        # Add all points as vertices
+        for i in range(len(self.points)):
+            G.add_node(i)
+
+        # Use kNN to find nearest neighbors in R4 space
+        kNN = NearestNeighbors(
+            n_neighbors=self.n_neighbors, metric="euclidean"
+        )
+        kNN.fit(self.embedded_points)
+
+        # Get distances and neighbors
+        distances, neighbors = kNN.kneighbors(self.embedded_points)
+
+        # Add edges with weights based on R4 Euclidean distances
+        for i in range(len(self.points)):
+            for j, dist in zip(neighbors[i], distances[i]):
+                if i != j:  # Avoid self-loops
+                    G.add_edge(i, j, weight=dist)
+
+        # Log graph statistics
+        print(
+            f"Graph has {G.number_of_nodes()} nodes and {G.number_of_edges()} edges"
+        )
+        return G
+
+    def __call__(self, x: np.ndarray, y: np.ndarray) -> float:
+        """
+        Compute the distance between points on the Klein bottle using shortest path
+        through the pre-computed graph.
+
+        Args:
+            x, y: points of shape (n, 2) or (2,) where each point is (t, θ)
+        Returns:
+            distances between points
+        """
+        # Ensure shapes consistency
+        if len(x.shape) == 1:
+            x = x.reshape(1, -1)
+        if len(y.shape) == 1:
+            y = y.reshape(1, -1)
+
+        # Embed points in R4
+        x_embedded = self.klein_bottle_embedding(x)
+        y_embedded = self.klein_bottle_embedding(y)
+
+        # Find k nearest neighbors and distances for all points at once
+        x_dists, x_neighbors = self.kdtree.kneighbors(x_embedded)
+        y_dists, y_neighbors = self.kdtree.kneighbors(y_embedded)
+
+        # Get all pairwise shortest path distances between neighbors using the pre-computed distance matrix
+        graph_distances = self.distance_matrix[
+            x_neighbors[:, :, None], y_neighbors[0, None, :]
+        ]
+
+        # Compute weighted distances based on how close points are to their nearest neighbors
+        weights_x = np.exp(
+            -x_dists
+        )  # Use exponential weighting for better numerical stability
+        weights_y = np.exp(-y_dists)
+        weights_x = weights_x / weights_x.sum(axis=1, keepdims=True)
+        weights_y = weights_y / weights_y.sum(axis=1, keepdims=True)
+
+        # Compute final distances as weighted average of shortest path distances
+        distances = np.sum(
+            weights_x[:, :, None] * weights_y[0, None, :] * graph_distances,
+            axis=(1, 2),
+        )
+
+        return distances
+
+    def pairwise_distances(self, X: np.ndarray) -> np.ndarray:
+        """
+        Compute pairwise distances between all points on the Klein bottle.
+
+        Args:
+            X: array of shape (n_points, 2) where each point is (u, v)
+        Returns:
+            array of shape (n_points, n_points) with pairwise distances
+        """
+        n_points = X.shape[0]
+        distances = np.zeros((n_points, n_points))
+
+        for i in range(n_points):
+            distances[i, :] = self(X[i : i + 1], X)
 
         return distances
