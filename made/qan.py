@@ -38,6 +38,41 @@ class QAN:
 # ---------------------------------------------------------------------------- #
 
 
+# ----------------------------------- Line ----------------------------------- #
+@dataclass
+class LineQAN(QAN):
+    manifold: AbstractManifold = manifolds.Line()
+    spacing: float = 0.075
+    alpha: float = 3
+    sigma: float = 1
+    offset_magnitude: float = 0.5
+
+    @staticmethod
+    def coordinates_offset(
+        theta: np.ndarray, dim: int, direction: int, offset_magnitude: float
+    ) -> np.ndarray:
+        theta[:, dim] += direction * offset_magnitude
+        return theta
+
+
+# ----------------------------------- Ring ----------------------------------- #
+@dataclass
+class RingQAN(QAN):
+    manifold: AbstractManifold = manifolds.Ring()
+    spacing: float = 0.075
+    alpha: float = 3
+    sigma: float = 1
+    offset_magnitude: float = 0.1
+
+    @staticmethod
+    def coordinates_offset(
+        theta: np.ndarray, dim: int, direction: int, offset_magnitude: float
+    ) -> np.ndarray:
+        theta[:, dim] += direction * offset_magnitude
+        theta[:, dim] = np.mod(theta[:, dim], 2 * np.pi)
+        return theta
+
+
 # ----------------------------------- Plane ---------------------------------- #
 @dataclass
 class PlaneQAN(QAN):
