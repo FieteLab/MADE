@@ -35,14 +35,14 @@ from made.can import CAN
 ### Example
 We provide three notebooks to demonstrate the usage of the package.
 
-In `1_visualize_connectivity.ipynb` we show how one can visualize a `Metric` over a `Manifold` as well as
+In `made/notebooks/1_visualize_connectivity.ipynb` we show how one can visualize a `Metric` over a `Manifold` as well as
 how to visualize a CAN's connectivity and it's state (as a bump on the manifold).
 
-In `2_visualize_activity_manifold.ipynb` we show how to create a large number of simulations, each with
+In `made/notebooks/2_visualize_activity_manifold.ipynb` we show how to create a large number of simulations, each with
 the CAN's bump at a different point. Then we use Isomap to create a 3D visualization of the activity manifold
 in state space.
 
-In `3_visualize_qans_integration.ipynb` we show how to create a QAN and visualize it's (offset) connectivity.
+In `made/notebooks/3_visualize_qans_integration.ipynb` we show how to create a QAN and visualize it's (offset) connectivity.
 We then use the QAN to generate a trajectory over the manifold and visualize how the QAN reconstructs it.
 
 ### Continuous Attractor Networks
